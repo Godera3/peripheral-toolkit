@@ -1,0 +1,22 @@
+# AULA F75 — udev rule
+# ----------------------
+# Grants members of the 'plugdev' group direct read/write access to the
+# AULA F75's USB device nodes, for both connection modes:
+#   - Wired:    258a:010c
+#   - Wireless: 3554:fa09 (dongle)
+#
+# Why this exists: without it, raw USB HID access requires root, which means
+# every backend call needs sudo. A GUI subprocess calling `sudo` has no
+# terminal to prompt in and will hang or fail. This rule removes the need
+# for elevated privileges entirely — the backend then runs as your normal
+# user, every time, with no password prompt.
+#
+# Installed to: /etc/udev/rules.d/99-aula-f75.rules
+# (the frontend's "Install Rule" button writes this file via pkexec, once)
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="258a", ATTR{idProduct}=="010c", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="3554", ATTR{idProduct}=="fa09", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+
+# Some kernels expose HID keyboards as hidraw nodes too; cover that path as well.
+KERNEL=="hidraw*", ATTRS{idVendor}=="258a", ATTRS{idProduct}=="010c", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="3554", ATTRS{idProduct}=="fa09", MODE="0660", GROUP="plugdev", TAG+="uaccess"
