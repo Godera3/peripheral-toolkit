@@ -56,6 +56,11 @@ def list_effects():
     for name, val in modes:
         print(f"  0x{val:02x}  sleep-{name}")
     print("  or:  aula-f75 sleep on <minutes>")
+    print()
+    print("Adjustments (wireless only):")
+    print("  aula-f75 color <hex>        set fixed-on colour, e.g. ff0000, 00ff00, 0000ff")
+    print("  aula-f75 brightness <0-9>   set brightness level (default 9, captured 5)")
+    print("  aula-f75 colorful on|off     toggle colourful mode")
 
 
 def send_wired(dev, effect_id):
@@ -132,6 +137,65 @@ def send_sequence(dev, seq_bytes, gaps=None):
             time.sleep(0.03)
 
 
+def load_wireless_sequence():
+    path = os.path.join(FRAG_DIR, "wireless_sequence.bin")
+    with open(path, 'rb') as f:
+        return bytearray(f.read())
+
+
+def set_param_flag(seq, flag=0x28):
+    """Patch fragment 39 byte 15 to flag (0x28 for parameter changes)."""
+    idx = 39 * 20
+    seq[idx + 15] = flag
+    seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+
+
+def patch_effect_id(seq, effect_id):
+    """Patch effect ID into fragment 38 byte 15 and recompute checksum."""
+    idx = 38 * 20
+    seq[idx + 15] = effect_id
+    seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+
+
+def patch_color(seq, r, g, b):
+    """Patch the fixed-on RGB color in fragments 0-35.
+    Based on color_change capture: bytes 12-14 of fragment 1 hold the active RGB triple."""
+    idx = 1 * 20
+    seq[idx + 12] = r
+    seq[idx + 13] = g
+    seq[idx + 14] = b
+    # Also duplicate to the secondary entry (bytes 15-17) to match OEM behaviour
+    seq[idx + 15] = r
+    seq[idx + 16] = g
+    seq[idx + 17] = b
+    seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+
+
+def patch_brightness(seq, level):
+    """Patch brightness into fragment 42 byte 7.
+    Captured default is 0x09; brightness_change used 0x05."""
+    idx = 42 * 20
+    seq[idx + 7] = level & 0xFF
+    seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+
+
+def patch_colorful(seq, on):
+    """Patch colorful flag into fragment 42 byte 8.
+    ON=0x47 (colorful_on capture), OFF=0x40 (colorful_off capture).
+    Both keep effect 0x01 (fixed_on)."""
+    idx = 42 * 20
+    seq[idx + 8] = 0x47 if on else 0x40
+    seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+
+
+def send_captured_sequence(dev, name):
+    path = os.path.join(FRAG_DIR, f"{name}_sequence.bin")
+    with open(path, 'rb') as f:
+        seq = bytearray(f.read())
+    gaps = load_gaps()
+    send_sequence(dev, seq, gaps)
+
+
 def load_sleep_gaps():
     path = os.path.join(FRAG_DIR, "sleep_gaps.bin")
     if os.path.exists(path):
@@ -157,6 +221,9 @@ def main():
         print("Usage: aula-f75 <effect>")
         print("       aula-f75 list")
         print("       aula-f75 sleep <mode> [timeout]")
+        print("       aula-f75 color <hex>")
+        print("       aula-f75 brightness <0-9>")
+        print("       aula-f75 colorful on|off")
         sys.exit(1)
 
     if sys.argv[1] == "list":
@@ -214,10 +281,75 @@ def main():
             usb.util.dispose_resources(dev)
         return
 
-    effect_arg = sys.argv[1].lower()
-    effect_id = EFFECTS.get(effect_arg)
+    cmd = sys.argv[1].lower()
+
+    if cmd in ("color", "brightness", "colorful"):
+        dev = usb.core.find(idVendor=WIRELESS_VIDPID[0], idProduct=WIRELESS_VIDPID[1])
+        if dev is None:
+            print("Wireless AULA dongle not found.")
+            sys.exit(1)
+
+        if cmd == "color":
+            if len(sys.argv) < 3:
+                print("Usage: aula-f75 color <hex>")
+                sys.exit(1)
+            hex_color = sys.argv[2].lstrip("#")
+            if len(hex_color) != 6 or not all(c in "0123456789abcdefABCDEF" for c in hex_color):
+                print(f"Invalid hex colour: {sys.argv[2]}")
+                sys.exit(1)
+            r = int(hex_color[0:2], 16)
+            g = int(hex_color[2:4], 16)
+            b = int(hex_color[4:6], 16)
+            print(f"Setting colour: #{hex_color} (R={r}, G={g}, B={b})")
+            seq = load_wireless_sequence()
+            patch_effect_id(seq, 0x01)
+            set_param_flag(seq, 0x28)
+            patch_color(seq, r, g, b)
+            # Colour change disables colourful mode in OEM software
+            idx = 42 * 20
+            seq[idx + 8] = 0x40
+            seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
+        elif cmd == "brightness":
+            if len(sys.argv) < 3:
+                print("Usage: aula-f75 brightness <0-9>")
+                sys.exit(1)
+            try:
+                level = int(sys.argv[2])
+            except ValueError:
+                print(f"Invalid brightness level: {sys.argv[2]}")
+                sys.exit(1)
+            if not 0 <= level <= 9:
+                print("Brightness level must be 0-9")
+                sys.exit(1)
+            print(f"Setting brightness: {level}")
+            seq = load_wireless_sequence()
+            patch_effect_id(seq, 0x01)
+            set_param_flag(seq, 0x28)
+            patch_brightness(seq, level)
+        elif cmd == "colorful":
+            if len(sys.argv) < 3 or sys.argv[2].lower() not in ("on", "off"):
+                print("Usage: aula-f75 colorful on|off")
+                sys.exit(1)
+            on = sys.argv[2].lower() == "on"
+            print(f"Setting colourful: {'on' if on else 'off'}")
+            seq = load_wireless_sequence()
+            set_param_flag(seq, 0x28)
+            patch_colorful(seq, on)
+
+        iface = 1
+        if dev.is_kernel_driver_active(iface):
+            dev.detach_kernel_driver(iface)
+        try:
+            gaps = load_gaps()
+            send_sequence(dev, seq, gaps)
+            print("Done!")
+        finally:
+            restore_kernel_drivers(dev)
+        return
+
+    effect_id = EFFECTS.get(cmd)
     if effect_id is None:
-        print(f"Unknown effect: {effect_arg}")
+        print(f"Unknown command or effect: {cmd}")
         print("Run 'aula-f75 list' to see available effects")
         sys.exit(1)
 
@@ -243,9 +375,7 @@ def main():
         if is_wired:
             send_wired(dev, effect_id)
         else:
-            path = os.path.join(FRAG_DIR, "wireless_sequence.bin")
-            with open(path, 'rb') as f:
-                seq = bytearray(f.read())
+            seq = load_wireless_sequence()
             cmd_idx = 38 * 20
             seq[cmd_idx + 15] = effect_id
             seq[cmd_idx + 19] = sum(seq[cmd_idx:cmd_idx + 19]) & 0xFF

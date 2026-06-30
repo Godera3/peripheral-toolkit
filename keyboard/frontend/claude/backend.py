@@ -99,6 +99,21 @@ def apply_effect(token: str) -> CommandResult:
     return _run([token])
 
 
+def set_color(hex_color: str) -> CommandResult:
+    """Set the fixed-on colour from a 6-digit hex string (e.g. 'ff0000')."""
+    return _run(["color", hex_color.lstrip("#")])
+
+
+def set_brightness(level: int) -> CommandResult:
+    """Set brightness level 0-9."""
+    return _run(["brightness", str(level)])
+
+
+def set_colorful(on: bool) -> CommandResult:
+    """Toggle colourful mode on/off."""
+    return _run(["colorful", "on" if on else "off"])
+
+
 def set_sleep(mode: str, minutes: int | None = None) -> CommandResult:
     """mode is 'on' or 'off'. minutes only applies when mode == 'on'."""
     args = ["sleep", mode]
