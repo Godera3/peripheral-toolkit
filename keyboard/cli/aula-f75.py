@@ -86,7 +86,13 @@ def send_wired(dev, effect_id):
 
 
 def restore_kernel_drivers(dev):
-    """Bind usbhid to interface 1 only (never touches interface 0)."""
+    """Reattach usbhid to interface 1 — uses libusb ioctl first (works without
+    root when udev rule grants device node access), falls back to sysfs bind."""
+    try:
+        dev.attach_kernel_driver(1)
+        return
+    except Exception:
+        pass
     try:
         port_str = '.'.join(str(p) for p in dev.port_numbers)
         intf_path = f"{dev.bus}-{port_str}:1.1"
@@ -195,8 +201,8 @@ def main():
             send_sleep(dev, sleep_value)
             print("Done!")
         finally:
-            usb.util.dispose_resources(dev)
             restore_kernel_drivers(dev)
+            usb.util.dispose_resources(dev)
         return
 
     effect_arg = sys.argv[1].lower()
@@ -238,8 +244,8 @@ def main():
             send_sequence(dev, seq, gaps)
         print("Done!")
     finally:
-        usb.util.dispose_resources(dev)
         restore_kernel_drivers(dev)
+        usb.util.dispose_resources(dev)
 
 
 if __name__ == "__main__":
