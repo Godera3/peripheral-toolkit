@@ -85,6 +85,13 @@ def send_wired(dev, effect_id):
     return False
 
 
+def reattach_driver(dev, iface):
+    try:
+        dev.attach_kernel_driver(iface)
+    except (usb.core.USBError, ValueError):
+        pass
+
+
 def load_gaps():
     path = os.path.join(FRAG_DIR, "wireless_gaps.bin")
     if os.path.exists(path):
@@ -183,6 +190,7 @@ def main():
             send_sleep(dev, sleep_value)
             print("Done!")
         finally:
+            reattach_driver(dev, iface)
             usb.util.dispose_resources(dev)
         return
 
@@ -225,6 +233,7 @@ def main():
             send_sequence(dev, seq, gaps)
         print("Done!")
     finally:
+        reattach_driver(dev, iface)
         usb.util.dispose_resources(dev)
 
 
