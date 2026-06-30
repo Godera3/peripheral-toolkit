@@ -85,10 +85,21 @@ def send_wired(dev, effect_id):
     return False
 
 
-def reattach_driver(dev, iface):
+def restore_kernel_drivers(dev):
+    """Rebind kernel drivers to all interfaces via sysfs USB re-enumeration."""
     try:
-        dev.attach_kernel_driver(iface)
-    except (usb.core.USBError, ValueError):
+        port_str = '.'.join(str(p) for p in dev.port_numbers)
+        dev_path = f"{dev.bus}-{port_str}"
+        sysfs = f"/sys/bus/usb/devices/{dev_path}"
+        if not os.path.exists(sysfs):
+            return
+        with open(f"{sysfs}/driver/unbind", "w") as f:
+            f.write(dev_path)
+        time.sleep(0.3)
+        with open(f"{sysfs}/driver/bind", "w") as f:
+            f.write(dev_path)
+        time.sleep(0.5)
+    except Exception:
         pass
 
 
@@ -190,8 +201,8 @@ def main():
             send_sleep(dev, sleep_value)
             print("Done!")
         finally:
-            reattach_driver(dev, iface)
             usb.util.dispose_resources(dev)
+            restore_kernel_drivers(dev)
         return
 
     effect_arg = sys.argv[1].lower()
@@ -233,8 +244,8 @@ def main():
             send_sequence(dev, seq, gaps)
         print("Done!")
     finally:
-        reattach_driver(dev, iface)
         usb.util.dispose_resources(dev)
+        restore_kernel_drivers(dev)
 
 
 if __name__ == "__main__":
