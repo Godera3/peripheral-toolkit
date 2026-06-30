@@ -86,19 +86,28 @@ def send_wired(dev, effect_id):
 
 
 def restore_kernel_drivers(dev):
-    """Reattach usbhid to interface 1 — uses libusb ioctl first (works without
-    root when udev rule grants device node access), falls back to sysfs bind."""
     try:
         dev.attach_kernel_driver(1)
+        usb.util.dispose_resources(dev)
+        return
+    except Exception:
+        pass
+    port_str = '.'.join(str(p) for p in dev.port_numbers)
+    intf_path = f"{dev.bus}-{port_str}:1.1"
+    sysfs = "/sys/bus/usb/drivers/usbhid"
+    usb.util.dispose_resources(dev)
+    try:
+        with open(f"{sysfs}/bind", "w") as f:
+            f.write(intf_path)
         return
     except Exception:
         pass
     try:
-        port_str = '.'.join(str(p) for p in dev.port_numbers)
-        intf_path = f"{dev.bus}-{port_str}:1.1"
-        sysfs = "/sys/bus/usb/drivers/usbhid"
-        with open(f"{sysfs}/bind", "w") as f:
-            f.write(intf_path)
+        import subprocess
+        subprocess.run(
+            ["sudo", "-n", "/usr/local/bin/aula-f75-restore-driver"],
+            capture_output=True, timeout=5
+        )
     except Exception:
         pass
 
@@ -245,7 +254,6 @@ def main():
         print("Done!")
     finally:
         restore_kernel_drivers(dev)
-        usb.util.dispose_resources(dev)
 
 
 if __name__ == "__main__":
