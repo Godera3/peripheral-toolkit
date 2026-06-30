@@ -86,19 +86,13 @@ def send_wired(dev, effect_id):
 
 
 def restore_kernel_drivers(dev):
-    """Rebind kernel drivers to all interfaces via sysfs USB re-enumeration."""
+    """Bind usbhid to interface 1 only (never touches interface 0)."""
     try:
         port_str = '.'.join(str(p) for p in dev.port_numbers)
-        dev_path = f"{dev.bus}-{port_str}"
-        sysfs = f"/sys/bus/usb/devices/{dev_path}"
-        if not os.path.exists(sysfs):
-            return
-        with open(f"{sysfs}/driver/unbind", "w") as f:
-            f.write(dev_path)
-        time.sleep(0.3)
-        with open(f"{sysfs}/driver/bind", "w") as f:
-            f.write(dev_path)
-        time.sleep(0.5)
+        intf_path = f"{dev.bus}-{port_str}:1.1"
+        sysfs = "/sys/bus/usb/drivers/usbhid"
+        with open(f"{sysfs}/bind", "w") as f:
+            f.write(intf_path)
     except Exception:
         pass
 
