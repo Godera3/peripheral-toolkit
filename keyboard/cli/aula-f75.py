@@ -90,6 +90,25 @@ def send_wired(dev, effect_id):
     return False
 
 
+def prepare_device(dev):
+    """Ensure the device is in a clean state: reset if stale claims prevent use."""
+    for i in range(2):
+        if dev.is_kernel_driver_active(i):
+            dev.detach_kernel_driver(i)
+    try:
+        usb.util.claim_interface(dev, 0)
+        usb.util.release_interface(dev, 0)
+    except usb.core.USBError as e:
+        if e.errno == 16:
+            dev.reset()
+            time.sleep(1)
+            for i in range(2):
+                if dev.is_kernel_driver_active(i):
+                    dev.detach_kernel_driver(i)
+            usb.util.claim_interface(dev, 0)
+            usb.util.release_interface(dev, 0)
+
+
 def restore_kernel_drivers(dev):
     try:
         dev.attach_kernel_driver(1)
@@ -98,13 +117,18 @@ def restore_kernel_drivers(dev):
     except Exception:
         pass
     port_str = '.'.join(str(p) for p in dev.port_numbers)
-    intf_path = f"{dev.bus}-{port_str}:1.1"
+    intf_path1 = f"{dev.bus}-{port_str}:1.1"
+    intf_path0 = f"{dev.bus}-{port_str}:1.0"
     sysfs = "/sys/bus/usb/drivers/usbhid"
     usb.util.dispose_resources(dev)
     try:
         with open(f"{sysfs}/bind", "w") as f:
-            f.write(intf_path)
-        return
+            f.write(intf_path1)
+    except Exception:
+        pass
+    try:
+        with open(f"{sysfs}/bind", "w") as f:
+            f.write(intf_path0)
     except Exception:
         pass
     try:
@@ -159,15 +183,12 @@ def patch_effect_id(seq, effect_id):
 
 def patch_color(seq, r, g, b):
     """Patch the fixed-on RGB color in fragments 0-35.
-    Based on color_change capture: bytes 12-14 of fragment 1 hold the active RGB triple."""
+    Based on color_change capture: bytes 12-14 of fragment 1 hold the active RGB triple.
+    Bytes 15-17 are a separate entry and must NOT be touched."""
     idx = 1 * 20
     seq[idx + 12] = r
     seq[idx + 13] = g
     seq[idx + 14] = b
-    # Also duplicate to the secondary entry (bytes 15-17) to match OEM behaviour
-    seq[idx + 15] = r
-    seq[idx + 16] = g
-    seq[idx + 17] = b
     seq[idx + 19] = sum(seq[idx:idx + 19]) & 0xFF
 
 
@@ -270,15 +291,16 @@ def main():
             sys.exit(1)
 
         print(f"Setting sleep: value=0x{sleep_value:02x} ({sleep_value})")
+        prepare_device(dev)
         iface = 1
         if dev.is_kernel_driver_active(iface):
             dev.detach_kernel_driver(iface)
         try:
-            send_sleep(dev, sleep_value)
+            gaps = load_gaps()
+            send_sequence(dev, seq, gaps)
             print("Done!")
         finally:
             restore_kernel_drivers(dev)
-            usb.util.dispose_resources(dev)
         return
 
     cmd = sys.argv[1].lower()
@@ -333,9 +355,11 @@ def main():
             on = sys.argv[2].lower() == "on"
             print(f"Setting colourful: {'on' if on else 'off'}")
             seq = load_wireless_sequence()
+            patch_effect_id(seq, 0x01)
             set_param_flag(seq, 0x28)
             patch_colorful(seq, on)
 
+        prepare_device(dev)
         iface = 1
         if dev.is_kernel_driver_active(iface):
             dev.detach_kernel_driver(iface)
@@ -366,6 +390,9 @@ def main():
     device_type = "wired" if is_wired else "wireless"
     print(f"Found {device_type} device ({dev.idVendor:04x}:{dev.idProduct:04x})")
     print(f"Setting: {EFFECT_NAMES.get(effect_id, f'0x{effect_id:02x}')}")
+
+    if not is_wired:
+        prepare_device(dev)
 
     iface = 1
     if dev.is_kernel_driver_active(iface):
