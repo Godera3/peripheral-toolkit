@@ -72,3 +72,24 @@ class UdevInstallWorker(QThread):
             self.finished_err.emit(str(exc))
             return
         self.finished_ok.emit(result)
+
+
+class ParamApplyWorker(QThread):
+    """Generic worker for quick parameter changes (color, brightness, colorful).
+    Takes a zero-argument callable that returns a CommandResult."""
+
+    finished = pyqtSignal(object)  # CommandResult
+
+    def __init__(self, fn, parent=None):
+        super().__init__(parent)
+        self._fn = fn
+
+    def run(self) -> None:
+        try:
+            result = self._fn()
+        except BackendError as exc:
+            self.finished.emit(
+                CommandResult(ok=False, stdout="", stderr=str(exc), returncode=-1)
+            )
+            return
+        self.finished.emit(result)

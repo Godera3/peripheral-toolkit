@@ -15,8 +15,9 @@ in the window mutates that state directly.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
+    QColorDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -40,6 +41,7 @@ from widgets import EffectSwatch, ToggleSwitch
 from workers import (
     ConnectionPollWorker,
     EffectApplyWorker,
+    ParamApplyWorker,
     SleepSetWorker,
     UdevInstallWorker,
 )
@@ -104,6 +106,138 @@ class EffectCard(QFrame):
             self._on_click(self._effect)
 
 
+class FixedOnControlsPanel(QFrame):
+    """Color presets, custom picker, brightness slider, colorful toggle.
+    Visible only when Fixed On (0x01) is active on a wireless connection."""
+
+    color_selected = pyqtSignal(object)  # str (hex)
+    brightness_changed = pyqtSignal(object)  # int (0-9)
+    colorful_toggled = pyqtSignal(object)  # bool
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("EffectCard")
+        self.setVisible(False)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(SPACE_MD, SPACE_MD, SPACE_MD, SPACE_MD)
+        layout.setSpacing(SPACE_SM)
+
+        # ── Header ──
+        header = QLabel("FIXED ON")
+        header.setObjectName("SectionLabel")
+        layout.addWidget(header)
+
+        # ── Color presets ──
+        self._preset_colors = [
+            ("#FF0000", "Red"), ("#FF8000", "Orange"), ("#F5E642", "Yellow"),
+            ("#00FF00", "Green"), ("#00FFFF", "Cyan"), ("#0000FF", "Blue"),
+            ("#8000FF", "Purple"), ("#FFFFFF", "White"),
+        ]
+        self._color_btns: list[QPushButton] = []
+
+        color_row = QHBoxLayout()
+        color_row.setSpacing(SPACE_SM)
+        color_label = QLabel("Color")
+        color_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
+        color_row.addWidget(color_label)
+
+        for hex_color, name in self._preset_colors:
+            btn = QPushButton()
+            btn.setFixedSize(28, 28)
+            btn.setToolTip(name)
+            btn.setStyleSheet(
+                f"background-color: {hex_color}; border: 1px solid #2D3038; "
+                f"border-radius: 4px; min-width: 0; padding: 0;"
+            )
+            btn.clicked.connect(lambda checked, h=hex_color: self._on_color_picked(h))
+            color_row.addWidget(btn)
+            self._color_btns.append(btn)
+
+        custom_btn = QPushButton("Custom\u2026")
+        custom_btn.setFixedHeight(28)
+        custom_btn.clicked.connect(self._on_custom_color)
+        color_row.addWidget(custom_btn)
+        color_row.addStretch()
+        layout.addLayout(color_row)
+
+        # ── Brightness ──
+        bright_row = QHBoxLayout()
+        bright_row.setSpacing(SPACE_SM)
+        bright_label = QLabel("Brightness")
+        bright_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
+        bright_row.addWidget(bright_label)
+
+        self._brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self._brightness_slider.setRange(0, 9)
+        self._brightness_slider.setValue(9)
+        self._brightness_slider.valueChanged.connect(self._on_brightness_changed)
+        bright_row.addWidget(self._brightness_slider, stretch=1)
+
+        self._brightness_label = QLabel("9")
+        self._brightness_label.setFixedWidth(20)
+        self._brightness_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
+        bright_row.addWidget(self._brightness_label)
+        layout.addLayout(bright_row)
+
+        # ── Colorful toggle ──
+        colorful_row = QHBoxLayout()
+        colorful_row.setSpacing(SPACE_SM)
+        colorful_label = QLabel("Colorful")
+        colorful_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
+        colorful_row.addWidget(colorful_label)
+
+        self._colorful_toggle = ToggleSwitch(checked=False)
+        self._colorful_toggle.toggled.connect(self._on_colorful_toggled)
+        colorful_row.addWidget(self._colorful_toggle)
+
+        self._colorful_status = QLabel("OFF")
+        self._colorful_status.setStyleSheet("color: #6B6F7C; font-size: 12px;")
+        colorful_row.addWidget(self._colorful_status)
+        colorful_row.addStretch()
+        layout.addLayout(colorful_row)
+
+        # ── Debounce timer for brightness ──
+        self._debounce = QTimer(self)
+        self._debounce.setSingleShot(True)
+        self._debounce.setInterval(300)
+        self._debounce.timeout.connect(self._emit_brightness)
+        self._pending_brightness = 9
+
+    # ── Public helpers ──
+
+    def is_colorful_on(self) -> bool:
+        return self._colorful_toggle.isChecked()
+
+    def set_colorful_checked(self, on: bool) -> None:
+        self._colorful_toggle.blockSignals(True)
+        self._colorful_toggle.setChecked(on)
+        self._colorful_status.setText("ON" if on else "OFF")
+        self._colorful_toggle.blockSignals(False)
+
+    # ── Slots ──
+
+    def _on_color_picked(self, hex_color: str) -> None:
+        self.color_selected.emit(hex_color)
+
+    def _on_custom_color(self) -> None:
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self._on_color_picked(color.name())
+
+    def _on_brightness_changed(self, value: int) -> None:
+        self._brightness_label.setText(str(value))
+        self._pending_brightness = value
+        self._debounce.start()
+
+    def _emit_brightness(self) -> None:
+        self.brightness_changed.emit(self._pending_brightness)
+
+    def _on_colorful_toggled(self, checked: bool) -> None:
+        self._colorful_status.setText("ON" if checked else "OFF")
+        self.colorful_toggled.emit(checked)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -123,6 +257,7 @@ class MainWindow(QMainWindow):
         self._sleep_worker: SleepSetWorker | None = None
         self._udev_worker: UdevInstallWorker | None = None
         self._poll_worker: ConnectionPollWorker | None = None
+        self._fixed_on_worker: ParamApplyWorker | None = None
 
         self._build_ui()
         self._start_polling()
@@ -153,6 +288,7 @@ class MainWindow(QMainWindow):
         scroll_layout.setSpacing(SPACE_LG)
 
         scroll_layout.addWidget(self._build_effects_section())
+        scroll_layout.addWidget(self._build_fixed_on_panel())
         scroll_layout.addWidget(self._build_sleep_section())
         scroll_layout.addStretch()
 
@@ -201,6 +337,14 @@ class MainWindow(QMainWindow):
             grid.addWidget(card, i // columns, i % columns)
         layout.addWidget(grid_host)
         return section
+
+    def _build_fixed_on_panel(self) -> FixedOnControlsPanel:
+        panel = FixedOnControlsPanel()
+        panel.color_selected.connect(self._on_fixed_on_color)
+        panel.brightness_changed.connect(self._on_fixed_on_brightness)
+        panel.colorful_toggled.connect(self._on_fixed_on_colorful)
+        self._fixed_on_panel = panel
+        return panel
 
     def _build_sleep_section(self) -> QWidget:
         section = QFrame()
@@ -300,6 +444,11 @@ class MainWindow(QMainWindow):
             else "Wireless dongle only."
         )
 
+        fixed_on_enabled = state == ConnectionState.WIRELESS
+        self._fixed_on_panel.setEnabled(fixed_on_enabled)
+        if not fixed_on_enabled:
+            self._fixed_on_panel.setVisible(False)
+
         if state == ConnectionState.DISCONNECTED:
             self._show_banner(
                 "Keyboard not found.",
@@ -386,6 +535,10 @@ class MainWindow(QMainWindow):
                 self._cards[self._active_code].set_active(False)
             card.set_active(True)
             self._active_code = effect.code
+            self._fixed_on_panel.setVisible(
+                effect.code == 0x01
+                and self._connection_state == ConnectionState.WIRELESS
+            )
         else:
             # Exit 0 but unexpected output, or non-zero exit — treat as failure.
             if "AULA keyboard not found." in (result.stdout + result.stderr):
@@ -403,6 +556,39 @@ class MainWindow(QMainWindow):
             "Couldn't apply effect",
             f"\"{effect.name}\" wasn't applied.\n\n{detail or 'Unknown error.'}",
         )
+
+    # ------------------------------------------------------------------
+    # Fixed ON parameter controls
+    # ------------------------------------------------------------------
+
+    def _schedule_param(self, fn) -> None:
+        worker = ParamApplyWorker(fn)
+        worker.finished.connect(self._on_fixed_on_param_done)
+        worker.start()
+
+    def _on_fixed_on_color(self, hex_color: str) -> None:
+        need_colorful_off = self._fixed_on_panel.is_colorful_on()
+        if need_colorful_off:
+            self._fixed_on_panel.set_colorful_checked(False)
+        self._schedule_param(lambda: backend.set_color(hex_color))
+        if need_colorful_off:
+            QTimer.singleShot(
+                200, lambda: self._schedule_param(lambda: backend.set_colorful(False))
+            )
+
+    def _on_fixed_on_brightness(self, level: int) -> None:
+        self._schedule_param(lambda: backend.set_brightness(level))
+
+    def _on_fixed_on_colorful(self, on: bool) -> None:
+        self._schedule_param(lambda: backend.set_colorful(on))
+
+    def _on_fixed_on_param_done(self, result: CommandResult) -> None:
+        if not result.ok:
+            QMessageBox.warning(
+                self,
+                "Parameter not applied",
+                result.stderr or result.stdout or "Unknown error.",
+            )
 
     # ------------------------------------------------------------------
     # Sleep controls
