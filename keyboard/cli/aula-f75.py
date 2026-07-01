@@ -91,10 +91,9 @@ def send_wired(dev, effect_id):
 
 
 def prepare_device(dev):
-    """Detach kernel drivers and claim/release interface 0 to ensure clean state."""
-    for i in range(2):
-        if dev.is_kernel_driver_active(i):
-            dev.detach_kernel_driver(i)
+    """Detach kernel driver from vendor HID interface only (not the keyboard interface 0)."""
+    if dev.is_kernel_driver_active(1):
+        dev.detach_kernel_driver(1)
     time.sleep(0.5)
 
 
