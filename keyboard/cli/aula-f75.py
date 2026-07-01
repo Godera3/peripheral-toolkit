@@ -91,22 +91,11 @@ def send_wired(dev, effect_id):
 
 
 def prepare_device(dev):
-    """Ensure the device is in a clean state: reset if stale claims prevent use."""
+    """Detach kernel drivers and claim/release interface 0 to ensure clean state."""
     for i in range(2):
         if dev.is_kernel_driver_active(i):
             dev.detach_kernel_driver(i)
-    try:
-        usb.util.claim_interface(dev, 0)
-        usb.util.release_interface(dev, 0)
-    except usb.core.USBError as e:
-        if e.errno == 16:
-            dev.reset()
-            time.sleep(1)
-            for i in range(2):
-                if dev.is_kernel_driver_active(i):
-                    dev.detach_kernel_driver(i)
-            usb.util.claim_interface(dev, 0)
-            usb.util.release_interface(dev, 0)
+    time.sleep(0.5)
 
 
 def restore_kernel_drivers(dev):
