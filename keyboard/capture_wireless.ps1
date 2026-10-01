@@ -7,8 +7,10 @@ if (-not $Elevated) {
     exit
 }
 
-$outDir = "C:\Users\Gabriel\Desktop\aula_captures\wireless"
-$tshark = "C:\Program Files\Wireshark\tshark.exe"
+$outDir = if ($env:AULA_CAPTURE_DIR) { $env:AULA_CAPTURE_DIR } else { Join-Path $PSScriptRoot "wireless" }
+if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
+$tshark = (Get-Command tshark -ErrorAction SilentlyContinue).Source
+if (-not $tshark) { $tshark = "C:\Program Files\Wireshark\tshark.exe" }
 $captureTime = 8
 
 $scenarios = @(
