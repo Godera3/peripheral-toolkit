@@ -3,7 +3,9 @@ import os, sys, time, struct
 import usb.core
 import usb.util
 
-FRAG_DIR = os.path.join(os.path.dirname(__file__), "fragments")
+# Fragments now live in the shared package (moved in the aula_f75 refactor).
+# Kept working as a fallback/reference until this file is removed.
+FRAG_DIR = os.path.join(os.path.dirname(__file__), "..", "aula_f75", "fragments")
 
 WIRED_VIDPID = (0x258a, 0x010c)
 WIRELESS_VIDPID = (0x3554, 0xfa09)
