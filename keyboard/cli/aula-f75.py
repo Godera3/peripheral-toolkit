@@ -98,27 +98,45 @@ def prepare_device(dev):
 
 
 def restore_kernel_drivers(dev):
+    """Re-bind usbhid to the vendor interface (interface 1).
+
+    Order matters: the libusb device handle must be released *before* the
+    kernel driver can re-attach. After any control transfer the interface
+    stays busy and attach_kernel_driver() fails with EBUSY (Errno 16) until
+    dispose_resources() has run. Release first, then attach — otherwise the
+    sysfs fallback below is the only path that works, and that needs root,
+    so unprivileged (udev-rule) callers would silently leave interface 1
+    unbound after every command.
+    """
+    try:
+        port_str = '.'.join(str(p) for p in dev.port_numbers)
+        bus = dev.bus
+    except Exception:
+        port_str, bus = None, None
+
+    try:
+        usb.util.dispose_resources(dev)
+    except Exception:
+        pass
+
     try:
         dev.attach_kernel_driver(1)
-        usb.util.dispose_resources(dev)
         return
     except Exception:
         pass
-    port_str = '.'.join(str(p) for p in dev.port_numbers)
-    intf_path1 = f"{dev.bus}-{port_str}:1.1"
-    intf_path0 = f"{dev.bus}-{port_str}:1.0"
+
+    if port_str is None:
+        return
+
+    # Fallback: bind through sysfs (requires root) and/or the setuid helper.
+    # Both are best-effort no-ops for unprivileged callers.
     sysfs = "/sys/bus/usb/drivers/usbhid"
-    usb.util.dispose_resources(dev)
-    try:
-        with open(f"{sysfs}/bind", "w") as f:
-            f.write(intf_path1)
-    except Exception:
-        pass
-    try:
-        with open(f"{sysfs}/bind", "w") as f:
-            f.write(intf_path0)
-    except Exception:
-        pass
+    for intf_path in (f"{bus}-{port_str}:1.1", f"{bus}-{port_str}:1.0"):
+        try:
+            with open(f"{sysfs}/bind", "w") as f:
+                f.write(intf_path)
+        except Exception:
+            pass
     try:
         import subprocess
         subprocess.run(
