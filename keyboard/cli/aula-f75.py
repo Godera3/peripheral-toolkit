@@ -284,8 +284,7 @@ def main():
         if dev.is_kernel_driver_active(iface):
             dev.detach_kernel_driver(iface)
         try:
-            gaps = load_gaps()
-            send_sequence(dev, seq, gaps)
+            send_sleep(dev, sleep_value)
             print("Done!")
         finally:
             restore_kernel_drivers(dev)
