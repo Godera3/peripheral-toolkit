@@ -13,11 +13,22 @@ Linux-native CLI tools for reverse-engineered gaming peripherals.
 ## Usage
 
 ```bash
+# Dependency: pyusb (pure Python, talks to libusb-1.0).
+# Debian/Ubuntu/Mint: sudo apt install python3-usb  (or: pip install pyusb)
 pip install pyusb
+
+# Either run with sudo...
 sudo python3 keyboard/cli/aula-f75.py list
 sudo python3 keyboard/cli/aula-f75.py rainbow
 sudo python3 keyboard/cli/aula-f75.py sleep off
+
+# ...or install the included udev rule once and run without sudo (recommended).
+# See keyboard/README.md → "Permissions".
 ```
+
+USB access needs read/write on the keyboard's device node, which only root
+has by default. Install [`keyboard/frontend/claude/99-aula-f75.rules`](keyboard/frontend/claude/99-aula-f75.rules)
+to grant your user direct access and drop `sudo` entirely.
 
 ## Structure
 

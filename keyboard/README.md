@@ -6,11 +6,52 @@ Reverse-engineered USB HID protocol for the AULA F75 mechanical keyboard. Contro
 
 ```bash
 pip install pyusb
+
+# Either run with sudo...
 sudo python3 cli/aula-f75.py list          # see all effects
 sudo python3 cli/aula-f75.py rainbow       # set an effect
 sudo python3 cli/aula-f75.py sleep off     # disable sleep
 sudo python3 cli/aula-f75.py sleep on 40   # enable sleep, 40min timeout
+
+# ...or install the udev rule below and drop sudo entirely.
 ```
+
+## Permissions — running without `sudo`
+
+Raw USB access needs read/write on the device node, which by default only
+root has. Two options:
+
+1. **`sudo`** — works everywhere, but prompts on every call.
+2. **udev rule (recommended)** — install
+   [`frontend/claude/99-aula-f75.rules`](frontend/claude/99-aula-f75.rules)
+   once and your user gets direct access:
+
+   ```bash
+   sudo cp frontend/claude/99-aula-f75.rules /etc/udev/rules.d/
+   sudo udevadm control --reload-rules
+   sudo udevadm trigger            # applies to an already-plugged device too
+   python3 cli/aula-f75.py rainbow # no sudo
+   ```
+
+   The rule grants `MODE="0660", GROUP="plugdev"` (plus `TAG+="uaccess"`)
+   on both `258a:010c` (wired) and `3554:fa09` (wireless), so any member of
+   `plugdev` can use the tool. *(The same rule is what the PyQt frontend
+   installs via its in-app button — see `frontend/`.)*
+
+## Adjustments (wireless dongle only)
+
+Besides the effects above, the CLI can change the Fixed-On colour, the
+brightness, and the "colorful" mode:
+
+```bash
+python3 cli/aula-f75.py color ff8800      # Fixed On colour; also turns colourful mode off
+python3 cli/aula-f75.py brightness 5      # 0–9 (default 9)
+python3 cli/aula-f75.py colorful on       # default multi-colour Fixed On (static)
+```
+
+`color`, `brightness` and `colorful` all pin the effect to **Fixed On
+(`0x01`)** — i.e. a static board — so `colorful on` is the quickest way to
+get the factory default mixed colours without animation.
 
 ## Effects
 

@@ -7,8 +7,8 @@ never touches USB/HID directly — every effect or sleep change is a
 ## Install
 
 ```bash
-cd keyboard/frontend
-pip install -r requirements.txt
+cd keyboard/frontend/claude
+pip install -r requirements.txt      # PyQt6
 ```
 
 Requires Python 3.10+ (uses `X | None` type syntax) and a desktop session
@@ -17,14 +17,17 @@ with `pkexec`/Polkit available — standard on Mint Cinnamon.
 ## Run
 
 ```bash
-python3 app.py
+python3 aula_f75.py      # from keyboard/frontend/claude
+# or, from keyboard/frontend/ (uses the local venv):
+./run.sh
 ```
 
 On first run with the keyboard plugged in, you'll see a **"Needs setup"**
-status and a banner with an **Install permission rule** button. Click it,
-authenticate once via the graphical prompt, then unplug/replug the
-keyboard. After that, the app needs no further authentication — see
-"Why no `sudo`" below.
+status and a banner with an **Install permission rule** button. Click it and
+authenticate once via the graphical prompt. The install runs
+`udevadm control --reload-rules && udevadm trigger`, so it takes effect
+immediately (a replug is not required). After that, the app needs no further
+authentication — see "Why no `sudo`" below.
 
 ## Why no `sudo`
 
@@ -67,14 +70,16 @@ If `pkexec` isn't available on your system (`policykit-1` not installed),
 
 ```
 frontend/
-├── app.py            entry point
-├── main_window.py     layout, all UI state transitions
-├── backend.py          owns every subprocess call + udev install + permission checks
-├── workers.py           QThread wrappers so subprocess calls never block the GUI
-├── widgets.py           EffectSwatch (live animated preview), ToggleSwitch
-├── effects.py            static table of the 16 effects (code, name, alias, anim style)
-├── theme.py               palette / stylesheet, single source for all colors
-└── 99-aula-f75.rules       udev rule template, installed via the in-app button
+├── run.sh             launcher (uses the local venv/)
+└── claude/
+    ├── aula_f75.py        entry point
+    ├── main_window.py     layout, all UI state transitions
+    ├── backend.py          owns every subprocess call + udev install + permission checks
+    ├── workers.py           QThread wrappers so subprocess calls never block the GUI
+    ├── widgets.py           EffectSwatch (live animated preview), ToggleSwitch
+    ├── effects.py            static table of the 16 effects (code, name, alias, anim style)
+    ├── theme.py               palette / stylesheet, single source for all colors
+    └── 99-aula-f75.rules       udev rule template, installed via the in-app button
 ```
 
 All backend calls run on a `QThread` (see `workers.py`); `subprocess.run`
@@ -103,18 +108,13 @@ screenshots, not by reading the code.
 
 ## Backend script
 
-`cli/aula-f75.py` in this delivery is a **stub**, not the real driver — no
-backend implementation was provided as part of this task. It implements
-the exact documented contract (effect codes, aliases, exit codes, "Done!"
-/ "AULA keyboard not found." strings, sleep on/off/timeout args) so the
-frontend can be built and tested against real subprocess calls and real
-exit codes instead of guessed behavior. `detect_device()` always reports
-"wireless" present and every effect call sleeps 0.4s then succeeds — it
-never touches actual USB.
-
-**Replace `cli/aula-f75.py` with your real implementation.** The frontend
-only depends on the documented CLI contract (see the spec), never on
-anything inside this stub, so swapping the file is the only step needed.
+The backend is the **real driver**: [`../../cli/aula-f75.py`](../../cli/aula-f75.py).
+The frontend depends only on its documented CLI contract — effect codes and
+aliases, exit codes, the `Done!` / `AULA keyboard not found.` strings, and the
+`sleep on|off|<minutes>` argument forms (see [`../SPECIFICATION.md`](../SPECIFICATION.md))
+— and `backend.py` runs it as `python3 aula-f75.py <args>` with **no `sudo`**
+(the udev rule above is what makes that possible). The frontend never touches
+USB itself.
 
 ## License
 
