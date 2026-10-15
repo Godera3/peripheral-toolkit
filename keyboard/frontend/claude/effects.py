@@ -40,6 +40,7 @@ EFFECTS: list[Effect] = [
     Effect(0x0F, "Rotating Windmill", "rotating-windmill", "spin"),
     Effect(0x10, "Colorful Waterfall", "colorful-waterfall", "stream"),
     Effect(0x11, "Blossoming", "blossoming", "bloom"),
+    Effect(0x15, "Self Define", "self-define", "solid"),
 ]
 
 EFFECTS_BY_CODE: dict[int, Effect] = {e.code: e for e in EFFECTS}

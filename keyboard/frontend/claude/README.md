@@ -1,8 +1,8 @@
 # AULA F75 Control — Frontend
 
-A PyQt6 GUI for the AULA F75 backend CLI (`cli/aula-f75.py`). The frontend
-never touches USB/HID directly — every effect or sleep change is a
-`subprocess` call into the backend script.
+A PyQt6 GUI for the AULA F75 keyboard. The frontend uses the `aula_f75`
+package directly via `backend.py`, which provides a thin adapter between
+the GUI and the shared driver library.
 
 ## Install
 
@@ -42,8 +42,8 @@ Instead, this app ships a `udev` rule
 access to the keyboard's USB device nodes, for both connection modes
 (`258a:010c` wired, `3554:fa09` wireless). Once installed:
 
-- The backend runs as your normal user — **no `sudo` in the subprocess
-  call at all**. `backend.py` invokes `python3 aula-f75.py ...` directly.
+- The backend runs as your normal user — **no `sudo` required**.
+  `backend.py` imports and calls the `aula_f75` package directly.
 - The *only* privileged operation in the whole app is writing that one
   rule file to `/etc/udev/rules.d/`, which happens once, via `pkexec` (a
   proper graphical Polkit prompt, not a hung terminal sudo).
@@ -106,15 +106,13 @@ Fixed by using `None` as the "not yet known" sentinel instead of
 actually running the app under `QT_QPA_PLATFORM=offscreen` and diffing two
 screenshots, not by reading the code.
 
-## Backend script
+## Backend
 
-The backend is the **real driver**: [`../../cli/aula-f75.py`](../../cli/aula-f75.py).
-The frontend depends only on its documented CLI contract — effect codes and
-aliases, exit codes, the `Done!` / `AULA keyboard not found.` strings, and the
-`sleep on|off|<minutes>` argument forms (see [`../SPECIFICATION.md`](../SPECIFICATION.md))
-— and `backend.py` runs it as `python3 aula-f75.py <args>` with **no `sudo`**
-(the udev rule above is what makes that possible). The frontend never touches
-USB itself.
+The backend is the **real driver** from the shared `aula_f75` package. The
+frontend imports this package directly via `backend.py` (no subprocesses,
+no CLI string parsing). The GUI ships its own effect metadata and delegates
+all USB operations to the library. The only privileged operation is installing
+the udev rule (via `pkexec`).
 
 ## License
 

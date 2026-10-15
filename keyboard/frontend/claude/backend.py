@@ -1,17 +1,12 @@
 """
 backend.py
 ==========
-The only module that talks to the CLI backend or touches privilege
+The only module that talks to the library backend or touches privilege
 escalation. Everything else in the frontend goes through this.
 
 Privilege model
 ----------------
-The documented backend contract assumes `sudo python3 aula-f75.py ...`.
-That doesn't work cleanly from a GUI subprocess: there's no terminal
-attached for sudo to prompt in, so it either hangs waiting for a password
-on stdin, or fails outright depending on the sudoers timestamp cache.
-
-Instead, this app uses a one-time udev rule (99-aula-f75.rules) that grants
+The app uses a one-time udev rule (99-aula-f75.rules) that grants
 the user's session direct read/write access to the keyboard's USB device
 nodes. Once installed, the backend runs as a normal user process — no sudo,
 no password prompt, on every single call. The udev rule itself is installed
@@ -28,23 +23,42 @@ from __future__ import annotations
 import glob
 import os
 import subprocess
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-# Resolve the backend path relative to this file, not the CWD the app was
-# launched from, since the spec places this script at frontend/ and the
-# backend at ../cli/ relative to it.
+# Add the keyboard package to path so we can import aula_f75
 _FRONTEND_DIR = Path(__file__).resolve().parent
-BACKEND_SCRIPT = _FRONTEND_DIR.parent.parent / "cli" / "aula-f75.py"
+_KEYBOARD_ROOT = _FRONTEND_DIR.parent.parent
+if str(_KEYBOARD_ROOT) not in sys.path:
+    sys.path.insert(0, str(_KEYBOARD_ROOT))
+
+# Ensure we import the package, not the local entry script aula_f75.py
+import importlib.util
+
+_pkg_path = _KEYBOARD_ROOT / "aula_f75"
+spec = importlib.util.spec_from_file_location(
+    "aula_f75", _pkg_path / "__init__.py"
+)
+if spec and spec.loader:
+    aula_f75 = importlib.util.module_from_spec(spec)
+    sys.modules["aula_f75"] = aula_f75
+    spec.loader.exec_module(aula_f75)
+else:
+    import aula_f75  # type: ignore
+from aula_f75 import (
+    DeviceBusy,
+    DeviceNotFound,
+    WiredNotFound,
+    WirelessNotFound,
+)
 
 UDEV_RULE_SOURCE = _FRONTEND_DIR / "99-aula-f75.rules"
 UDEV_RULE_DEST = Path("/etc/udev/rules.d/99-aula-f75.rules")
 
 WIRED_VID_PID = ("258a", "010c")
 WIRELESS_VID_PID = ("3554", "fa09")
-
-CALL_TIMEOUT_SECONDS = 10
 
 
 class ConnectionState(Enum):
@@ -63,71 +77,87 @@ class CommandResult:
 
 
 class BackendError(Exception):
-    """Raised when the backend script itself can't be found or invoked."""
+    """Raised when the backend operation fails."""
 
 
-def _run(args: list[str]) -> CommandResult:
-    if not BACKEND_SCRIPT.exists():
-        raise BackendError(
-            f"Backend script not found at {BACKEND_SCRIPT}. "
-            "Expected keyboard/cli/aula-f75.py relative to keyboard/frontend/."
-        )
-    try:
-        proc = subprocess.run(
-            ["python3", str(BACKEND_SCRIPT), *args],
-            capture_output=True,
-            text=True,
-            timeout=CALL_TIMEOUT_SECONDS,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise BackendError(
-            f"Backend call timed out after {CALL_TIMEOUT_SECONDS}s: {' '.join(args)}"
-        ) from exc
-    except OSError as exc:
-        raise BackendError(f"Failed to launch backend: {exc}") from exc
-
-    return CommandResult(
-        ok=proc.returncode == 0,
-        stdout=proc.stdout.strip(),
-        stderr=proc.stderr.strip(),
-        returncode=proc.returncode,
-    )
+def _to_backend_error(exc: Exception) -> BackendError:
+    if isinstance(exc, (WirelessNotFound, WiredNotFound, DeviceNotFound, DeviceBusy, ValueError, RuntimeError, IOError)):
+        return BackendError(str(exc))
+    return BackendError(str(exc))
 
 
 def apply_effect(token: str) -> CommandResult:
-    """Send an effect to the keyboard. token is any name/alias from `list`."""
-    return _run([token])
+    """Send an effect to the keyboard. token is any name/alias from effects."""
+    try:
+        aula_f75.set_effect(token)
+        return CommandResult(ok=True, stdout="", stderr="", returncode=0)
+    except Exception as exc:
+        raise _to_backend_error(exc) from exc
 
 
 def set_color(hex_color: str) -> CommandResult:
     """Set the fixed-on colour from a 6-digit hex string (e.g. 'ff0000')."""
-    return _run(["color", hex_color.lstrip("#")])
+    try:
+        aula_f75.set_color(hex_color)
+        return CommandResult(ok=True, stdout="", stderr="", returncode=0)
+    except Exception as exc:
+        raise _to_backend_error(exc) from exc
 
 
 def set_brightness(level: int) -> CommandResult:
     """Set brightness level 0-9."""
-    return _run(["brightness", str(level)])
+    try:
+        aula_f75.set_brightness(level)
+        return CommandResult(ok=True, stdout="", stderr="", returncode=0)
+    except Exception as exc:
+        raise _to_backend_error(exc) from exc
 
 
 def set_colorful(on: bool) -> CommandResult:
     """Toggle colourful mode on/off."""
-    return _run(["colorful", "on" if on else "off"])
+    try:
+        aula_f75.set_colorful(on)
+        return CommandResult(ok=True, stdout="", stderr="", returncode=0)
+    except Exception as exc:
+        raise _to_backend_error(exc) from exc
 
 
 def set_sleep(mode: str, minutes: int | None = None) -> CommandResult:
     """mode is 'on' or 'off'. minutes only applies when mode == 'on'."""
-    args = ["sleep", mode]
-    if mode == "on" and minutes is not None:
-        args.append(str(minutes))
-    return _run(args)
+    try:
+        if mode == "off":
+            if minutes is not None:
+                raise ValueError("sleep off takes no timeout")
+            aula_f75.set_sleep(0x00)
+        elif mode == "on":
+            if minutes is not None:
+                aula_f75.set_sleep(minutes & 0xFF)
+            else:
+                aula_f75.set_sleep(0x03)
+        else:
+            try:
+                aula_f75.set_sleep(int(mode) & 0xFF)
+            except ValueError:
+                raise ValueError(f"unknown sleep mode: {mode!r}")
+        return CommandResult(ok=True, stdout="", stderr="", returncode=0)
+    except Exception as exc:
+        raise _to_backend_error(exc) from exc
 
 
 def list_effects_raw() -> CommandResult:
-    """Mostly useful for debugging — the GUI ships its own static effect
-    table (see effects.py) so it doesn't have to parse stdout to populate
-    the browser. This stays available for a future "verify against
-    backend" diagnostic."""
-    return _run(["list"])
+    """Mostly useful for debugging."""
+    # Build a simple list representation
+    lines = []
+    from aula_f75 import EFFECTS, ALIASES
+
+    for effect in sorted(EFFECTS, key=lambda e: e.code):
+        aliases = sorted(a for a, code in ALIASES.items() if code == effect.code)
+        lines.append(
+            f"  0x{effect.code:02x} {effect.name:20s} ({', '.join(aliases)})"
+        )
+    return CommandResult(
+        ok=True, stdout="\n".join(lines), stderr="", returncode=0
+    )
 
 
 class USBPermissionChecker:

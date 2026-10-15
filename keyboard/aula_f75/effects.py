@@ -76,6 +76,9 @@ ALIASES: dict[str, int] = {
 BY_CODE: dict[int, Effect] = {e.code: e for e in EFFECTS}
 NAME_BY_CODE: dict[int, str] = {e.code: e.name for e in EFFECTS}
 
+# Wireless-capable effect codes (self-define 0x15 is wired-only).
+WIRELESS_CAPABLE = {e.code for e in EFFECTS if e.code != 0x15}
+
 # effect code -> numeric filename prefix on the wired capture files.
 # Verified against `ls aula_f75/fragments/`; see the module docstring.
 WIRED_PREFIX: dict[int, str] = {

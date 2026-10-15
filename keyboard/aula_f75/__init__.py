@@ -25,8 +25,20 @@ from .core import (
     set_effect,
     set_sleep,
 )
-from .device import DeviceBusy, DeviceNotFound
-from .effects import ALIASES, BY_CODE, EFFECTS, NAME_BY_CODE
+from .device import (
+    DeviceBusy,
+    DeviceNotFound,
+    WiredNotFound,
+    WirelessNotFound,
+)
+from .effects import (
+    ALIASES,
+    BY_CODE,
+    EFFECTS,
+    NAME_BY_CODE,
+    WIRED_PREFIX,
+    WIRELESS_CAPABLE,
+)
 
 __all__ = [
     # operations
@@ -37,12 +49,16 @@ __all__ = [
     "set_sleep",
     # exceptions
     "DeviceNotFound",
+    "WiredNotFound",
+    "WirelessNotFound",
     "DeviceBusy",
     # data
     "EFFECTS",
     "BY_CODE",
     "NAME_BY_CODE",
     "ALIASES",
+    "WIRED_PREFIX",
+    "WIRELESS_CAPABLE",
     # submodules
     "device",
     "protocol",

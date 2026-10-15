@@ -1,9 +1,9 @@
 # AULA F75 Keyboard Frontend Specification
 
 ## Goal
-Build a modern GUI frontend for the AULA F75 mechanical keyboard RGB controller. The backend (`../cli/aula-f75.py`) handles all USB communication — the frontend is purely a GUI shell that calls it.
+Build a modern GUI frontend for the AULA F75 mechanical keyboard RGB controller. The frontend now uses the shared `aula_f75` package directly via `frontend/claude/backend.py` (thin adapter) — all USB communication happens in the library. The old subprocess/CLI contract remains conceptually similar but the implementation no longer shells out to `cli/aula-f75.py`.
 
-## Backend CLI Reference
+## Backend Reference
 
 ### `aula-f75 list`
 Lists effects + sleep modes. Output format:
@@ -36,7 +36,7 @@ Sleep modes:
 Applies effect immediately. Auto-detects wired (`258a:010c`) vs wireless dongle (`3554:fa09`).
 - Exit 0 + prints "Done!" on success
 - Exit 1 + prints "AULA keyboard not found." on failure
-- **Must run as root** (sudo)
+- Designed to run as normal user with appropriate udev permissions (see frontend README)
 
 ### `aula-f75 sleep <mode> [timeout]`
 - `aula-f75 sleep off` — disable sleep
@@ -72,10 +72,10 @@ Then `sudo udevadm control --reload-rules && udevadm trigger`. This grants user 
 
 **Option B — pkexec wrapper:** Create a small shell script that runs `pkexec python3 ../cli/aula-f75.py "$@"` and call that instead. Polkit pops a GUI auth dialog.
 
-**Do not use bare sudo in subprocess.** Pick one option above.
+**Do not use bare sudo in subprocess for commands.** Use udev rules (pkexec acceptable for one-time setup).
 
 ### Technical constraints
-- **Do not write USB/HID code** — call the CLI tool only
+- **Library-first** — use the `aula_f75` package directly via a thin adapter; no direct USB/HID code in the GUI
 - Python preferred for easiest integration with existing Python backend
 - GUI framework: any (PyQt6, GTK4, tkinter, web, Tauri, etc.)
 - Put all files in a `frontend/` directory under `keyboard/`

@@ -22,7 +22,10 @@ import sys
 from aula_f75 import (
     ALIASES,
     EFFECTS,
+    DeviceBusy,
     DeviceNotFound,
+    WirelessNotFound,
+    WiredNotFound,
     set_brightness,
     set_color,
     set_colorful,
@@ -51,8 +54,12 @@ def _cmd_list(_args) -> None:
 
 def _cmd_sleep(args) -> None:
     mode = args.mode.lower()
-    if mode in SLEEP_MODES:
-        value = args.timeout if args.timeout is not None else SLEEP_MODES[mode]
+    if mode == "off":
+        if args.timeout is not None:
+            raise SystemExit("sleep off takes no timeout")
+        value = SLEEP_MODES["off"]
+    elif mode == "on":
+        value = args.timeout if args.timeout is not None else SLEEP_MODES["on"]
     else:
         try:
             value = int(mode)
@@ -107,8 +114,17 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         fn(args)
+    except WirelessNotFound:
+        print("Wireless AULA dongle not found.", file=sys.stderr)
+        return 1
+    except WiredNotFound:
+        print("Wired AULA keyboard not found.", file=sys.stderr)
+        return 1
     except DeviceNotFound:
         print("AULA keyboard not found.", file=sys.stderr)
+        return 1
+    except DeviceBusy as exc:
+        print(f"Keyboard is busy: {exc}", file=sys.stderr)
         return 1
     except Exception as exc:  # noqa: BLE001 — CLI boundary: report, then exit
         print(f"Error: {exc}", file=sys.stderr)

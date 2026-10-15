@@ -18,7 +18,7 @@ from pathlib import Path
 FRAG_DIR = Path(__file__).parent / "fragments"
 
 WIRELESS_FRAG_LEN = 20
-WIRELESS_FRAG_COUNT = 48
+WIRELESS_FRAG_COUNT = 48  # number of 20-byte fragments in wireless_sequence.bin
 
 # 0-based frame indices inside the wireless sequence.
 FRAG_COLOR = 1

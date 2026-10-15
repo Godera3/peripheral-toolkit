@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 
 from . import device, protocol
-from .effects import ALIASES
+from .effects import ALIASES, WIRELESS_CAPABLE
 
 # bmRequestType / bRequest for a HID SET_REPORT.
 CONTROL_OUT = 0x21
@@ -62,9 +62,7 @@ def _send_wired(dev, effect_id: int) -> None:
         time.sleep(WIRED_GAP)
 
 
-def _require_wireless(kind: str, what: str) -> None:
-    if kind != "wireless":
-        raise RuntimeError(f"{what} is only supported on the wireless dongle")
+
 
 
 def _wireless_param_sequence():
@@ -83,6 +81,8 @@ def set_effect(alias: str) -> None:
         raise ValueError(f"unknown effect: {alias!r}")
 
     dev, kind = device.find()
+    if kind == "wireless" and effect_id not in WIRELESS_CAPABLE:
+        raise ValueError(f"effect 0x{effect_id:02x} is wired-only")
     with device.Session(dev, kind) as d:
         if kind == "wired":
             _send_wired(d, effect_id)
@@ -140,8 +140,7 @@ def set_sleep(value: int) -> None:
     if not 0 <= value <= 0xFF:
         raise ValueError("sleep value must be 0-255")
 
-    dev, kind = device.find()
-    _require_wireless(kind, "sleep")
+    dev, kind = device.find("wireless")
     with device.Session(dev, kind) as d:
         seq = protocol.load_sleep_sequence()
         protocol.patch_sleep(seq, value)

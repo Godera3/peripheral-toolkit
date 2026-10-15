@@ -530,24 +530,21 @@ class MainWindow(QMainWindow):
         card = self._cards[effect.code]
         card.set_busy(False)
 
-        if result.ok and "Done!" in result.stdout:
-            if self._active_code is not None and self._active_code in self._cards:
-                self._cards[self._active_code].set_active(False)
-            card.set_active(True)
-            self._active_code = effect.code
-            self._fixed_on_panel.setVisible(
-                effect.code == 0x01
-                and self._connection_state == ConnectionState.WIRELESS
-            )
-        else:
-            # Exit 0 but unexpected output, or non-zero exit — treat as failure.
-            if "AULA keyboard not found." in (result.stdout + result.stderr):
-                self._on_connection_state(ConnectionState.DISCONNECTED)
-            self._show_apply_failure(effect, result.stdout or result.stderr)
+        if self._active_code is not None and self._active_code in self._cards:
+            self._cards[self._active_code].set_active(False)
+        card.set_active(True)
+        self._active_code = effect.code
+        self._fixed_on_panel.setVisible(
+            effect.code == 0x01
+            and self._connection_state == ConnectionState.WIRELESS
+        )
 
     def _on_effect_error(self, effect: Effect, message: str) -> None:
         card = self._cards[effect.code]
         card.set_busy(False)
+        if "not found" in message.lower():
+            self._on_connection_state(ConnectionState.DISCONNECTED)
+            self._poll_connection()
         self._show_apply_failure(effect, message)
 
     def _show_apply_failure(self, effect: Effect, detail: str) -> None:
@@ -563,6 +560,7 @@ class MainWindow(QMainWindow):
 
     def _schedule_param(self, fn) -> None:
         worker = ParamApplyWorker(fn)
+        self._param_worker = worker  # keep reference
         worker.finished.connect(self._on_fixed_on_param_done)
         worker.start()
 

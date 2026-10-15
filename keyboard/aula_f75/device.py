@@ -25,6 +25,14 @@ class DeviceNotFound(Exception):
     """No AULA keyboard (wired or wireless dongle) is connected."""
 
 
+class WirelessNotFound(DeviceNotFound):
+    """Wireless AULA dongle not found."""
+
+
+class WiredNotFound(DeviceNotFound):
+    """Wired AULA keyboard not found."""
+
+
 class DeviceBusy(Exception):
     """The vendor interface could not be detached from the kernel driver."""
 
@@ -43,56 +51,70 @@ def find(kind: str | None = None):
         dev = usb.core.find(idVendor=WIRELESS_VIDPID[0], idProduct=WIRELESS_VIDPID[1])
         if dev is not None:
             return dev, "wireless"
+
+    if kind == "wireless":
+        raise WirelessNotFound("Wireless AULA dongle not found.")
+    if kind == "wired":
+        raise WiredNotFound("Wired AULA keyboard not found.")
     raise DeviceNotFound("AULA keyboard not found.")
 
 
 def restore(dev) -> None:
-    """Give the vendor interface back to `usbhid`.
+    """Hand the vendor interface back to usbhid, best-effort.
 
-    Order matters: the libusb handle must be released *before* re-attaching,
-    otherwise `attach_kernel_driver()` fails with EBUSY (Errno 16) after any
-    control transfer. A root-only sysfs bind and the optional setuid helper
-    are kept as best-effort fallbacks; both are no-ops for unprivileged
-    callers.
+    After control transfers, the handle may be busy - attempting to reattach on
+    the same handle can fail with EBUSY. To reliably rebind, dispose the handle
+    first, then acquire a fresh one and try to attach.
+
+    Unprivileged callers cannot force a rebind if libusb's reattach fails:
+    the sysfs fallback requires write access to /sys/bus/usb/drivers/usbhid/bind.
+    Failures here are swallowed on purpose — `Session.__exit__` must not mask
+    the original exception from the `with` block.
     """
     try:
         port_str = ".".join(str(p) for p in dev.port_numbers)
         bus = dev.bus
+        vid = dev.idVendor
+        pid = dev.idProduct
     except Exception:
-        port_str, bus = None, None
+        port_str, bus, vid, pid = None, None, None, None
 
+    # Dispose current handle first (releases claim)
     try:
         usb.util.dispose_resources(dev)
     except Exception:
         pass
 
-    try:
-        dev.attach_kernel_driver(VENDOR_IFACE)
-        return
-    except Exception:
-        pass
+    attached = False
+    if vid is not None and pid is not None:
+        try:
+            dev2 = usb.core.find(idVendor=vid, idProduct=pid)
+            if dev2 is not None:
+                try:
+                    dev2.attach_kernel_driver(VENDOR_IFACE)
+                    attached = True
+                except usb.core.USBError:
+                    pass
+                try:
+                    usb.util.dispose_resources(dev2)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
-    if port_str is None:
+    if attached or port_str is None:
         return
 
+    # Best-effort sysfs fallback. Only succeeds if the caller has write access
+    # to usbhid's bind file — normally root, or a custom udev rule.
     sysfs = "/sys/bus/usb/drivers/usbhid"
     for intf in (f"{bus}-{port_str}:1.1", f"{bus}-{port_str}:1.0"):
         try:
             with open(f"{sysfs}/bind", "w") as fh:
                 fh.write(intf)
-        except Exception:
-            pass
-
-    try:
-        import subprocess
-
-        subprocess.run(
-            ["sudo", "-n", "/usr/local/bin/aula-f75-restore-driver"],
-            capture_output=True,
-            timeout=5,
-        )
-    except Exception:
-        pass
+            return
+        except OSError:
+            continue
 
 
 class Session:
@@ -113,8 +135,10 @@ class Session:
         try:
             if self.dev.is_kernel_driver_active(VENDOR_IFACE):
                 self.dev.detach_kernel_driver(VENDOR_IFACE)
-        except Exception:
-            pass
+        except usb.core.USBError as exc:
+            raise DeviceBusy(
+                f"could not detach usbhid from interface {VENDOR_IFACE}: {exc}"
+            ) from exc
         time.sleep(0.5)
         return self.dev
 
