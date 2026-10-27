@@ -13,22 +13,23 @@ MyApplet.prototype = {
     _init: function(orientation, panel_height, instance_id) {
         Applet.TextIconApplet.prototype._init.call(this, orientation, panel_height, instance_id);
         
+        // Use the headset icon instead of a battery
+        this.set_applet_icon_symbolic_name("audio-headset-symbolic");
+        this.set_applet_label("--%");
+        
         this.menuManager = new PopupMenu.PopupMenuManager(this);
         this.menu = new Applet.AppletPopupMenu(this, orientation);
         this.menuManager.addMenu(this.menu);
 
-        // Menu Header
         this._deviceLabel = new PopupMenu.PopupMenuItem("Razer Barracuda X Chroma", { reactive: false });
         this._deviceLabel.label.set_style("font-weight: bold; font-size: 1.1em;");
         this.menu.addMenuItem(this._deviceLabel);
 
-        // Battery Text in Menu
         this._batteryLabel = new PopupMenu.PopupMenuItem("Battery: --%", { reactive: false });
         this.menu.addMenuItem(this._batteryLabel);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Refresh Button
         this._refreshItem = new PopupMenu.PopupMenuItem("Refresh Now");
         this._refreshItem.connect('activate', () => this._updateBattery());
         this.menu.addMenuItem(this._refreshItem);
@@ -50,18 +51,15 @@ MyApplet.prototype = {
                     this.set_applet_label(level + "%");
                     this.set_applet_tooltip("Razer Barracuda X Chroma\nBattery: " + level + "%");
                     
+                    // Keep headset icon, change text color based on level
+                    this.set_applet_icon_symbolic_name("audio-headset-symbolic");
+                    
                     if (level < 20) {
-                        this.set_applet_icon_symbolic_name("battery-caution-symbolic");
-                        this._applet_label.set_style("color: #ff5555; font-weight: bold;");
+                        this._applet_label.set_style("color: #ff5555; font-weight: bold;"); // Red
                     } else if (level < 50) {
-                        this.set_applet_icon_symbolic_name("battery-low-symbolic");
-                        this._applet_label.set_style("color: #fce94f; font-weight: bold;");
-                    } else if (level < 80) {
-                        this.set_applet_icon_symbolic_name("battery-good-symbolic");
-                        this._applet_label.set_style("color: #8ae234;");
+                        this._applet_label.set_style("color: #fce94f; font-weight: bold;"); // Yellow
                     } else {
-                        this.set_applet_icon_symbolic_name("battery-full-symbolic");
-                        this._applet_label.set_style("color: #8ae234;");
+                        this._applet_label.set_style("color: #8ae234;"); // Green
                     }
 
                     this._batteryLabel.label.set_text("Battery: " + level + "%");
@@ -69,8 +67,8 @@ MyApplet.prototype = {
             } else {
                 this.set_applet_label("--%");
                 this.set_applet_tooltip("Razer Barracuda X Chroma\nDisconnected or asleep");
-                this.set_applet_icon_symbolic_name("battery-empty-symbolic");
-                this._applet_label.set_style("color: #888888;");
+                this.set_applet_icon_symbolic_name("audio-headset-symbolic");
+                this._applet_label.set_style("color: #888888;"); // Grey
                 this._batteryLabel.label.set_text("Battery: Disconnected");
             }
         } catch(e) {
