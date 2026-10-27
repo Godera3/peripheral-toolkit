@@ -21,31 +21,46 @@ def is_mic_in_use():
         return False
 
 def main():
-    print("Sidetone daemon starting...")
+    print("Event-Driven Sidetone daemon starting...")
+    
+    try:
+        core.set_sidetone_volume(80)
+        core.set_sidetone(False)
+    except:
+        pass
+        
     current_state = False
     
     while True:
         try:
-            # Try to set volume once on start, fail silently if disconnected
-            try:
-                core.set_sidetone_volume(80)
-            except:
-                pass
-                
-            active = is_mic_in_use()
+            # The magic fix: stdbuf -oL forces line-buffering so we get events instantly
+            p = subprocess.Popen(["stdbuf", "-oL", "pactl", "subscribe"], stdout=subprocess.PIPE, text=True)
+            print("Listening for audio events...")
             
+            # Check initial state immediately
+            active = is_mic_in_use()
             if active and not current_state:
-                print("-> Turning Sidetone ON.")
                 core.set_sidetone(True)
                 current_state = True
-            elif not active and current_state:
-                print("-> Turning Sidetone OFF.")
-                core.set_sidetone(False)
-                current_state = False
+                print("-> Turning Sidetone ON.")
+            
+            for line in p.stdout:
+                # Debug print so you can see it working!
+                print(f"[DEBUG] Event: {line.strip()}")
                 
-            time.sleep(1)
+                if "source-output" in line:
+                    active = is_mic_in_use()
+                    
+                    if active and not current_state:
+                        print("-> Turning Sidetone ON.")
+                        core.set_sidetone(True)
+                        current_state = True
+                    elif not active and current_state:
+                        print("-> Turning Sidetone OFF.")
+                        core.set_sidetone(False)
+                        current_state = False
+
         except RuntimeError:
-            # Headset unplugged, reset state so it turns back on when reconnected
             current_state = False
             time.sleep(2)
         except Exception as e:
