@@ -45,7 +45,7 @@ Needs read/write on `/dev/hidraw*`. Install the udev rule once:
 
 ## Known Issues
 
-See `BUGS.md`. Main one: EQ write via USB does not trigger the firmware's
+See [BUGS.md](BUGS.md). Main one: EQ write via USB does not trigger the firmware's
 voice prompt (physical button press does).
 
 
