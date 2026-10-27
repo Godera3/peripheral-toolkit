@@ -35,3 +35,6 @@ No `sudo` needed once the udev rule is installed.
     keyboard/    AULA F75 - captures, CLI tool, protocol docs
     mouse/       Logitech G Pro X 2 - (coming soon)
     headset/     Razer Barracuda X Chroma - captures, CLI tool, protocol docs
+
+## Roadmap
+See [TODO.md](TODO.md) for upcoming features, including PyQt6 GUI frontends for both the headset and keyboard.
