@@ -6,9 +6,9 @@ Linux-native CLI tools for reverse-engineered gaming peripherals.
 
 | Device | Type | USB ID | Status |
 |--------|------|--------|--------|
-| AULA F75 | Keyboard | `258a:010c` (wired), `3554:fa09` (wireless) | [OK] 16 RGB effects + sleep control |
-| Logitech G Pro X 2 Superlight | Mouse | `046d:c547` | [PENDING] Captures pending |
-| Razer Barracuda X Chroma | Headset | `1532:0574` | [OK] Battery, EQ modes, Chroma lights, button events |
+| AULA F75 | Keyboard | `258a:010c` (wired), `3554:fa09` (wireless) | ✅ 16 RGB effects + sleep control |
+| Logitech G Pro X 2 Superlight | Mouse | `046d:c547` | ⏳ Captures pending |
+| Razer Barracuda X Chroma | Headset | `1532:0574` | ✅ Battery, EQ modes, Chroma lights, button events |
 
 ## Usage
 
