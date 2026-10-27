@@ -1,5 +1,7 @@
 # Razer Barracuda X Chroma — Linux Controller
 
+> **New to this tool?** Read the [CLI_GUIDE.md](CLI_GUIDE.md) for a simple, step-by-step explanation of every command.
+
 Reverse-engineered USB HID protocol for the Razer Barracuda X Chroma headset.
 Control EQ modes, Chroma lighting, and battery telemetry from Linux without
 Razer Synapse.
