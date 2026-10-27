@@ -3,3 +3,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 venv/
+
+# Raw USB captures are local ground truth, not source — regenerable from PLAN.md
+headset/captures/pcapng/*.pcapng
