@@ -48,6 +48,16 @@ MyApplet.prototype = {
                 if (match) {
                     let level = parseInt(match[1]);
                     
+                    if (level < 0) {
+                        // Headset is off but dongle is plugged in
+                        this.set_applet_label("--%");
+                        this.set_applet_tooltip("Razer Barracuda X Chroma\nTurned off");
+                        this.set_applet_icon_symbolic_name("audio-headset-symbolic");
+                        this._applet_label.set_style("color: #888888;"); // Grey
+                        this._batteryLabel.label.set_text("Battery: Headset Off");
+                        return;
+                    }
+                    
                     this.set_applet_label(level + "%");
                     this.set_applet_tooltip("Razer Barracuda X Chroma\nBattery: " + level + "%");
                     
