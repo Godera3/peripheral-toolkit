@@ -27,7 +27,8 @@ No `sudo` needed once the udev rule is installed.
     python3 headset/cli/barracuda.py eq movie
     python3 headset/cli/barracuda.py lights-off
 
-    # For a full list of commands, see: headset/CLI_GUIDE.md
+
+**[Read the full CLI Guide here](headset/CLI_GUIDE.md)** for simple, step-by-step explanations of every command.
 
 ## Structure
 
