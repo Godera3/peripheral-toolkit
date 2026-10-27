@@ -1,3 +1,47 @@
-# headset
+# Razer Barracuda X Chroma — Linux Controller
 
-Razer Barracuda X Chroma — future home for captures and CLI tools.
+Reverse-engineered USB HID protocol for the Razer Barracuda X Chroma headset.
+Control EQ modes, Chroma lighting, and battery telemetry from Linux without
+Razer Synapse.
+
+## Quick Start
+
+    python3 cli/barracuda.py battery      # current battery percentage
+    python3 cli/barracuda.py eq movie     # game / music / movie / custom
+    python3 cli/barracuda.py lights-off   # Chroma lighting off
+    python3 cli/barracuda.py lights-on    # Chroma lighting on
+    python3 cli/barracuda.py listen       # watch physical EQ button presses
+
+## Permissions
+
+Needs read/write on `/dev/hidraw*`. Install the udev rule once:
+
+    sudo tee /etc/udev/rules.d/99-razer-barracuda-x-chroma.rules <<'RULE'
+    SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1532", ATTRS{idProduct}=="0574", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+    RULE
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+
+## Protocol
+
+- USB ID `1532:0574`, Interface 3 (HID)
+- Report ID `0x02`, 64 bytes
+  - Host to device: control transfer, Output report (wValue 0x0202)
+  - Device to host: interrupt IN
+- Checksum: byte 62 = XOR of bytes 0..61
+- Full property map, framing, and experiment log: see `captures/PLAN.md`
+
+## Layout
+
+    headset/__init__.py
+    headset/protocol.py    — frame builder, XOR checksum
+    headset/device.py      — hidraw lookup, feature/output transport
+    headset/core.py        — get_battery, set_eq, set_lights_*, listen_events
+    cli/barracuda.py       — argparse wrapper
+    captures/PLAN.md       — reverse-engineering notes
+    vm/                    — Windows 10 RE guest setup
+
+## Known Issues
+
+See `BUGS.md`. Main one: EQ write via USB does not trigger the firmware's
+voice prompt (physical button press does).
