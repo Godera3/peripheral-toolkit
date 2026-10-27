@@ -1,7 +1,7 @@
 """
 device.py
 =========
-Raw hidraw access for Interface 3 (1532:0574).
+Raw hidraw and input event access for the Barracuda X Chroma.
 """
 import os, glob, fcntl
 
@@ -14,6 +14,20 @@ def find_hidraw() -> str:
         except OSError:
             continue
     raise RuntimeError("Razer Barracuda X Chroma hidraw node not found.")
+
+def find_input_event() -> str:
+    """Finds the event node for the headset's Consumer Control (Volume Wheel)."""
+    for path in glob.glob("/sys/class/input/event*/device/uevent"):
+        try:
+            with open(path) as f:
+                content = f.read()
+                # Match the Vendor/Product, and ensure it's the Consumer Control
+                if "PRODUCT=3/1532/574/110" in content and "Consumer Control" in content:
+                    dev_name = path.split("/")[-3]
+                    return f"/dev/input/{dev_name}"
+        except OSError:
+            continue
+    raise RuntimeError("Barracuda Consumer Control input event not found.")
 
 def send_output(dev_path: str, payload: bytes):
     fd = os.open(dev_path, os.O_RDWR)
