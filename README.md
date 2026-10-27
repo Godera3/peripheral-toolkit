@@ -10,6 +10,10 @@ Linux-native CLI tools for reverse-engineered gaming peripherals.
 | Logitech G Pro X 2 Superlight | Mouse | `046d:c547` | ⏳ Captures pending |
 | Razer Barracuda X Chroma | Headset | `1532:0574` | ✅ Battery, EQ modes, Chroma lights, button events |
 
+
+### Performance
+The headset daemons are completely event-driven and run in the background with **0.0% idle CPU** and **~11 MB of RAM**. For full benchmark details, see [headset/README.md](headset/README.md#performance--system-footprint).
+
 ## Usage
 
 ### Keyboard (AULA F75)
