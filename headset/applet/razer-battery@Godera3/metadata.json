@@ -1,0 +1,6 @@
+{
+    "uuid": "razer-battery@Godera3",
+    "name": "Razer Barracuda Battery",
+    "description": "Displays battery percentage for the Razer Barracuda X Chroma",
+    "icon": "battery-full"
+}
