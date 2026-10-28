@@ -15,11 +15,17 @@ EQ_MODES = {
 
 def get_battery() -> int:
     dev = device.find_hidraw()
-    device.send_output(dev, protocol.build_get(0x21))
-    time.sleep(0.05)
-    buf = device.get_feature(dev, 0x02, size=64)
-    if len(buf) >= 14 and buf[10] == 0x21:
-        return buf[13]
+    # Try up to 3 times to wake up a sleeping dongle
+    for attempt in range(3):
+        try:
+            device.send_output(dev, protocol.build_get(0x21))
+            time.sleep(0.1) # Give it 100ms to wake up
+            buf = device.get_feature(dev, 0x02, size=64)
+            if len(buf) >= 14 and buf[10] == 0x21:
+                return buf[13]
+        except Exception:
+            pass
+        time.sleep(0.1)
     return -1
 
 def set_eq(mode_str: str):
@@ -67,3 +73,40 @@ def listen_events():
         pass
     finally:
         os.close(fd)
+
+def get_lights_state() -> bool:
+    """Reads Property 0x40 to see if lights are on."""
+    dev = device.find_hidraw()
+    device.send_output(dev, protocol.build_get(0x40))
+    time.sleep(0.05)
+    buf = device.get_feature(dev, 0x02, size=64)
+    if len(buf) >= 14 and buf[10] == 0x40:
+        return buf[13] != 0x00
+    return False
+
+def set_color(r: int, g: int, b: int):
+    """Sets a static color (Stops the current loop)."""
+    dev = device.find_hidraw()
+    # Razer Static Color Payload
+    payload = protocol.build_set(0x0F, bytes([0x01, 0x01, 0x01, 0x01, 0x00, 0x00, r, g, b]))
+    device.send_output(dev, payload)
+
+def get_eq() -> int:
+    """Reads Property 0x13 to get the current EQ mode."""
+    dev = device.find_hidraw()
+    device.send_output(dev, protocol.build_get(0x13))
+    time.sleep(0.05)
+    buf = device.get_feature(dev, 0x02, size=64)
+    if len(buf) >= 14 and buf[10] == 0x13:
+        return buf[13]
+    return -1
+
+def get_sidetone_volume() -> int:
+    """Reads Property 0x19 to get the current sidetone volume (0-15)."""
+    dev = device.find_hidraw()
+    device.send_output(dev, protocol.build_get(0x19))
+    time.sleep(0.05)
+    buf = device.get_feature(dev, 0x02, size=64)
+    if len(buf) >= 14 and buf[10] == 0x19:
+        return buf[13]
+    return -1
