@@ -1,0 +1,9 @@
+{
+    "uuid": "logitech-battery@Godera3",
+    "name": "Logitech Mouse Battery",
+    "description": "Displays battery level for Logitech G Pro X Superlight 2 SE",
+    "icon": "battery",
+    "max-instances": -1,
+    "version": "1.0",
+    "author": "Godera3"
+}
