@@ -34,6 +34,15 @@ MyApplet.prototype = {
         this._refreshItem.connect('activate', () => this._updateBattery());
         this.menu.addMenuItem(this._refreshItem);
 
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        this._guiItem = new PopupMenu.PopupMenuItem("Open Control Panel");
+        this._guiItem.connect('activate', () => {
+            let script_path = GLib.get_home_dir() + "/Desktop/peripheral-toolkit/headset/frontend/main_window.py";
+            GLib.spawn_command_line_async("/usr/bin/python3 " + script_path);
+        });
+        this.menu.addMenuItem(this._guiItem);
+
         this._updateBattery();
     },
 
