@@ -3,7 +3,6 @@ const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const PopupMenu = imports.ui.popupMenu;
 
-const BATTERY_PATH = "/sys/class/power_supply/hidpp_battery_0/capacity";
 const UPDATE_INTERVAL = 60;
 
 function MyApplet(orientation, panel_height, instance_id) {
@@ -16,7 +15,6 @@ MyApplet.prototype = {
     _init: function(orientation, panel_height, instance_id) {
         Applet.TextIconApplet.prototype._init.call(this, orientation, panel_height, instance_id);
         
-        // Use a mouse icon instead of a battery icon
         this.set_applet_icon_symbolic_name("input-mouse-symbolic");
         this.set_applet_label("--%");
         
@@ -24,18 +22,15 @@ MyApplet.prototype = {
         this.menu = new Applet.AppletPopupMenu(this, orientation);
         this.menuManager.addMenu(this.menu);
 
-        // Menu Header
         this._deviceLabel = new PopupMenu.PopupMenuItem("Logitech G Pro X Superlight 2 SE", { reactive: false });
         this._deviceLabel.label.set_style("font-weight: bold; font-size: 1.1em;");
         this.menu.addMenuItem(this._deviceLabel);
 
-        // Battery Text in Menu
         this._batteryLabel = new PopupMenu.PopupMenuItem("Battery: --%", { reactive: false });
         this.menu.addMenuItem(this._batteryLabel);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Refresh Button
         this._refreshItem = new PopupMenu.PopupMenuItem("Refresh Now");
         this._refreshItem.connect('activate', () => this._updateBattery());
         this.menu.addMenuItem(this._refreshItem);
@@ -47,14 +42,40 @@ MyApplet.prototype = {
         });
     },
 
+    _findBatteryPath: function(filename) {
+        let sysfs = Gio.file_new_for_path("/sys/class/power_supply/");
+        let enumerator = sysfs.enumerate_children("standard::name", Gio.FileQueryInfoFlags.NONE, null);
+        let info;
+        while ((info = enumerator.next_file(null)) !== null) {
+            let name = info.get_name();
+            if (name.indexOf("hidpp_battery_") === 0) {
+                return "/sys/class/power_supply/" + name + "/" + filename;
+            }
+        }
+        return null;
+    },
+
     _updateBattery: function() {
         try {
-            let file = Gio.file_new_for_path(BATTERY_PATH);
-            if (!file.query_exists(null)) {
+            let cap_path = this._findBatteryPath("capacity");
+            let status_path = this._findBatteryPath("status");
+            
+            if (!cap_path || !status_path) {
                 this._setDisconnectedState("Mouse not detected");
                 return;
             }
             
+            let status_file = Gio.file_new_for_path(status_path);
+            let [sOk, sContents] = status_file.load_contents(null);
+            let status = sContents.toString().trim();
+            
+            // If status is "Unknown", the mouse is turned off
+            if (status === "Unknown" || status === "") {
+                this._setDisconnectedState("Mouse turned off");
+                return;
+            }
+            
+            let file = Gio.file_new_for_path(cap_path);
             let [ok, contents] = file.load_contents(null);
             let level = parseInt(contents.toString().trim());
             
