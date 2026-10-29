@@ -87,3 +87,57 @@ def get_sidetone_volume() -> int:
         return 0
     except Exception:
         return 0
+
+def get_link_state() -> int:
+    try:
+        return core.get_link_state()
+    except Exception:
+        return 1
+
+def is_bluetooth_connected() -> bool:
+    """Checks if the headset is connected via PipeWire/Bluetooth."""
+    try:
+        # pactl lists all audio sinks. If the Barracuda is on BT, it will be listed here.
+        res = subprocess.run(["pactl", "list", "sinks", "short"], capture_output=True, text=True)
+        return "bluez_output" in res.stdout.lower()
+    except Exception:
+        return False
+
+def set_default_sink(device_type: str):
+    """Automatically switches audio between the 2.4GHz dongle and Bluetooth."""
+    try:
+        if device_type == "bluetooth":
+            # 1. First, force the Bluetooth card to the high-quality A2DP profile
+            cards = subprocess.run(["pactl", "list", "cards", "short"], capture_output=True, text=True).stdout
+            for card in cards.splitlines():
+                if "bluez" in card:
+                    card_id = card.split()[0]
+                    subprocess.run(["pactl", "set-card-profile", card_id, "a2dp-sink"])
+                    break
+            
+        # 2. Find the correct sink
+        res = subprocess.run(["pactl", "list", "sinks", "short"], capture_output=True, text=True)
+        sinks = res.stdout.splitlines()
+        
+        target_sink = None
+        for sink in sinks:
+            if device_type == "bluetooth" and "bluez_output" in sink:
+                target_sink = sink.split()[1]
+                break
+            elif device_type == "wireless" and "alsa_output.usb-MediaTek_Inc_Razer" in sink:
+                target_sink = sink.split()[1]
+                break
+                
+        if target_sink:
+            # Set as default
+            subprocess.run(["pactl", "set-default-sink", target_sink])
+            # Move all currently playing streams
+            streams = subprocess.run(["pactl", "list", "short", "sink-inputs"], capture_output=True, text=True)
+            for stream in streams.stdout.splitlines():
+                stream_id = stream.split()[0]
+                subprocess.run(["pactl", "move-sink-input", stream_id, target_sink])
+            print(f"Audio automatically routed to: {target_sink}")
+        else:
+            print(f"Could not find sink for {device_type}")
+    except Exception as e:
+        print(f"Failed to switch audio sink: {e}")

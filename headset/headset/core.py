@@ -110,3 +110,13 @@ def get_sidetone_volume() -> int:
     if len(buf) >= 14 and buf[10] == 0x19:
         return buf[13]
     return -1
+
+def get_link_state() -> int:
+    """Reads Property 0x20. Returns 1 for 2.4GHz, 0 for Bluetooth."""
+    dev = device.find_hidraw()
+    device.send_output(dev, protocol.build_get(0x20))
+    time.sleep(0.05)
+    buf = device.get_feature(dev, 0x02, size=64)
+    if len(buf) >= 14 and buf[10] == 0x20:
+        return buf[13]
+    return 1 # Default to 2.4GHz if unknown
