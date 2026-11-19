@@ -1,4 +1,14 @@
 __pycache__/
 *.pyc
+
+# Local vendor installers/artifacts (not committed)
+*.exe
+*.msi
+*.zip
+*.7z
+*.tar.gz
+*.pcapng
+decode.py
+
 .DS_Store
 Thumbs.db
