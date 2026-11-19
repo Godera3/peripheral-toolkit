@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 cd "$(dirname "$0")"
-exec venv/bin/python3 claude/aula_f75.py "$@"
+exec venv/bin/python3 gui/aula_f75.py "$@"

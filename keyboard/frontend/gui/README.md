@@ -7,7 +7,7 @@ the GUI and the shared driver library.
 ## Install
 
 ```bash
-cd keyboard/frontend/claude
+cd keyboard/frontend/gui
 pip install -r requirements.txt      # PyQt6
 ```
 
@@ -17,7 +17,7 @@ with `pkexec`/Polkit available — standard on Mint Cinnamon.
 ## Run
 
 ```bash
-python3 aula_f75.py      # from keyboard/frontend/claude
+python3 aula_f75.py      # from keyboard/frontend/gui
 # or, from keyboard/frontend/ (uses the local venv):
 ./run.sh
 ```
@@ -71,7 +71,7 @@ If `pkexec` isn't available on your system (`policykit-1` not installed),
 ```
 frontend/
 ├── run.sh             launcher (uses the local venv/)
-└── claude/
+└── gui/
     ├── aula_f75.py        entry point
     ├── main_window.py     layout, all UI state transitions
     ├── backend.py          owns every subprocess call + udev install + permission checks

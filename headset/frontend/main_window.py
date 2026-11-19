@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, QTimer
 from theme import stylesheet, ACCENT, card, ColorPicker, MUTED
 import backend
 
-# Import Claude's state machine
+# Import headset state machine workers
 from workers import (
     BatteryWorker, HidDongleWorker, BluezWatcher, 
     StatusResolver, State

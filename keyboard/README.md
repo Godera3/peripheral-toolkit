@@ -23,11 +23,11 @@ root has. Two options:
 
 1. **`sudo`** — works everywhere, but prompts on every call.
 2. **udev rule (recommended)** — install
-   [`frontend/claude/99-aula-f75.rules`](frontend/claude/99-aula-f75.rules)
+   [`frontend/gui/99-aula-f75.rules`](frontend/gui/99-aula-f75.rules)
    once and your user gets direct access:
 
    ```bash
-   sudo cp frontend/claude/99-aula-f75.rules /etc/udev/rules.d/
+   sudo cp frontend/gui/99-aula-f75.rules /etc/udev/rules.d/
    sudo udevadm control --reload-rules
    sudo udevadm trigger            # applies to an already-plugged device too
    python3 cli/aula-f75.py rainbow # no sudo

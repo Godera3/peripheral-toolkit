@@ -1,7 +1,7 @@
 # AULA F75 Keyboard Frontend Specification
 
 ## Goal
-Build a modern GUI frontend for the AULA F75 mechanical keyboard RGB controller. The frontend now uses the shared `aula_f75` package directly via `frontend/claude/backend.py` (thin adapter) — all USB communication happens in the library. The old subprocess/CLI contract remains conceptually similar but the implementation no longer shells out to `cli/aula-f75.py`.
+Build a modern GUI frontend for the AULA F75 mechanical keyboard RGB controller. The frontend now uses the shared `aula_f75` package directly via `frontend/gui/backend.py` (thin adapter) — all USB communication happens in the library. The old subprocess/CLI contract remains conceptually similar but the implementation no longer shells out to `cli/aula-f75.py`.
 
 ## Backend Reference
 
