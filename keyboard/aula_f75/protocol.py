@@ -106,6 +106,9 @@ def load_gaps(name: str = "wireless_gaps.bin") -> list[float] | None:
     return list(struct.unpack(f"<{len(data) // 8}d", data))
 
 
+WIRED_FRAG2_COLORFUL_OFFSET = 0x43  # observed: fixed-on colorful flag (0x47 on, 0x40 off)
+
+
 def load_wired_fragments(effect_id: int) -> list[bytes]:
     """The three wired fragments for `effect_id`.
 

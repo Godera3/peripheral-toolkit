@@ -49,17 +49,25 @@ def _send_wireless(dev, seq: bytearray, gaps: list[float] | None = None) -> None
         time.sleep(gap)
 
 
-def _send_wired(dev, effect_id: int) -> None:
+def _load_wired_frags(effect_id: int) -> list[bytearray]:
     try:
         frags = protocol.load_wired_fragments(effect_id)
     except (KeyError, FileNotFoundError) as exc:
         raise RuntimeError(f"no wired fragments for effect 0x{effect_id:02x}: {exc}")
+    return [bytearray(f) for f in frags]
+
+
+def _send_wired_frags(dev, frags) -> None:
     for frag in frags:
         w_value = (WIRED_CONTROL_HIGH << 8) | frag[0]
         dev.ctrl_transfer(
             CONTROL_OUT, CONTROL_SET_REPORT, w_value, device.VENDOR_IFACE, frag, CTRL_TIMEOUT_MS
         )
         time.sleep(WIRED_GAP)
+
+
+def _send_wired(dev, effect_id: int) -> None:
+    _send_wired_frags(dev, _load_wired_frags(effect_id))
 
 
 
@@ -123,12 +131,21 @@ def set_brightness(level: int) -> None:
 
 
 def set_colorful(on: bool) -> None:
-    """Turn the default multi-colour (colourful) mode on or off."""
-    dev, kind = device.find("wireless")
+    """Turn colourful (multi-colour) mode on or off.
+
+    Wireless uses the captured 48-frame parameter sequence. Wired fixed-on
+    support is observed (F75, 258a:010c): frag2 byte 0x43 toggles 0x47/0x40.
+    """
+    dev, kind = device.find()
     with device.Session(dev, kind) as d:
-        seq = _wireless_param_sequence()
-        protocol.patch_colorful(seq, on)
-        _send_wireless(d, seq, protocol.load_gaps())
+        if kind == "wireless":
+            seq = _wireless_param_sequence()
+            protocol.patch_colorful(seq, on)
+            _send_wireless(d, seq, protocol.load_gaps())
+        else:
+            frags = _load_wired_frags(FIXED_ON)
+            frags[2][protocol.WIRED_FRAG2_COLORFUL_OFFSET] = 0x47 if on else 0x40
+            _send_wired_frags(d, frags)
 
 
 def set_sleep(value: int) -> None:
