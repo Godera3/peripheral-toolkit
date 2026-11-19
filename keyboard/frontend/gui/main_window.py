@@ -107,15 +107,14 @@ class EffectCard(QFrame):
 
 
 class FixedOnControlsPanel(QFrame):
-    """Fixed On controls.
+    """Fixed On controls (v1 scope).
 
-    Wireless: color, brightness, colorful (captured/implemented).
-    Wired (AULA F75 258a:010c): colorful toggle observed (frag2[0x43]);
-    color/brightness parity not yet captured, so kept unavailable on cable.
+    Wireless (2.4G): fixed color picker and colorful toggle.
+    Wired: colorful toggle supported; fixed color not yet implemented.
+    Brightness is intentionally omitted from the v1 UI.
     """
 
     color_selected = pyqtSignal(object)  # str (hex)
-    brightness_changed = pyqtSignal(object)  # int (0-9)
     colorful_toggled = pyqtSignal(object)  # bool
 
     def __init__(self, parent=None):
@@ -156,6 +155,7 @@ class FixedOnControlsPanel(QFrame):
             btn = QPushButton()
             btn.setFixedSize(28, 28)
             btn.setToolTip(name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(
                 f"background-color: {hex_color}; border: 1px solid #2D3038; "
                 f"border-radius: 4px; min-width: 0; padding: 0;"
@@ -170,25 +170,6 @@ class FixedOnControlsPanel(QFrame):
         self._color_row.addWidget(self._custom_color_btn)
         self._color_row.addStretch()
         layout.addLayout(self._color_row)
-
-        # ── Brightness ──
-        self._bright_row = QHBoxLayout()
-        self._bright_row.setSpacing(SPACE_SM)
-        bright_label = QLabel("Brightness")
-        bright_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
-        self._bright_row.addWidget(bright_label)
-
-        self._brightness_slider = QSlider(Qt.Orientation.Horizontal)
-        self._brightness_slider.setRange(0, 9)
-        self._brightness_slider.setValue(9)
-        self._brightness_slider.valueChanged.connect(self._on_brightness_changed)
-        self._bright_row.addWidget(self._brightness_slider, stretch=1)
-
-        self._brightness_label = QLabel("9")
-        self._brightness_label.setFixedWidth(20)
-        self._brightness_label.setStyleSheet("color: #8B8F9C; font-size: 12px;")
-        self._bright_row.addWidget(self._brightness_label)
-        layout.addLayout(self._bright_row)
 
         # ── Colorful toggle ──
         colorful_row = QHBoxLayout()
@@ -207,13 +188,6 @@ class FixedOnControlsPanel(QFrame):
         colorful_row.addStretch()
         layout.addLayout(colorful_row)
 
-        # ── Debounce timer for brightness ──
-        self._debounce = QTimer(self)
-        self._debounce.setSingleShot(True)
-        self._debounce.setInterval(300)
-        self._debounce.timeout.connect(self._emit_brightness)
-        self._pending_brightness = 9
-
     # ── Public helpers ──
 
     def is_colorful_on(self) -> bool:
@@ -226,19 +200,18 @@ class FixedOnControlsPanel(QFrame):
         self._colorful_toggle.blockSignals(False)
 
     def set_wireless_mode(self, wireless: bool) -> None:
-        """Enable full controls on wireless; keep only colorful on wired."""
+        """Show in-scope controls per connection: full on 2.4G, colorful-only on wired."""
         for btn in self._color_btns:
             btn.setEnabled(wireless)
         self._custom_color_btn.setEnabled(wireless)
-        self._brightness_slider.setEnabled(wireless)
         self._colorful_toggle.setEnabled(True)
         if wireless:
-            self._hint.setVisible(False)
-            self._hint.setText("")
+            self._hint.setText("2.4G: fixed color and colorful toggle available.")
+            self._hint.setVisible(True)
         else:
             self._hint.setText(
-                "Color and brightness are available on 2.4G wireless (protocol not yet "
-                "captured for wired). Colorful toggle works on wired Fixed On."
+                "Wired: colorful toggle available. Fixed color is available on 2.4G "
+                "(wired not yet supported)."
             )
             self._hint.setVisible(True)
 
@@ -251,14 +224,6 @@ class FixedOnControlsPanel(QFrame):
         color = QColorDialog.getColor()
         if color.isValid():
             self._on_color_picked(color.name())
-
-    def _on_brightness_changed(self, value: int) -> None:
-        self._brightness_label.setText(str(value))
-        self._pending_brightness = value
-        self._debounce.start()
-
-    def _emit_brightness(self) -> None:
-        self.brightness_changed.emit(self._pending_brightness)
 
     def _on_colorful_toggled(self, checked: bool) -> None:
         self._colorful_status.setText("ON" if checked else "OFF")
@@ -368,7 +333,6 @@ class MainWindow(QMainWindow):
     def _build_fixed_on_panel(self) -> FixedOnControlsPanel:
         panel = FixedOnControlsPanel()
         panel.color_selected.connect(self._on_fixed_on_color)
-        panel.brightness_changed.connect(self._on_fixed_on_brightness)
         panel.colorful_toggled.connect(self._on_fixed_on_colorful)
         self._fixed_on_panel = panel
         return panel
@@ -390,7 +354,7 @@ class MainWindow(QMainWindow):
         header.addWidget(self._sleep_toggle)
         layout.addLayout(header)
 
-        self._sleep_hint = QLabel("Wireless dongle only.")
+        self._sleep_hint = QLabel("2.4G wireless only. Set a timeout to auto-sleep the keyboard.")
         self._sleep_hint.setStyleSheet("color: #8B8F9C; font-size: 12px;")
         layout.addWidget(self._sleep_hint)
 
@@ -466,9 +430,9 @@ class MainWindow(QMainWindow):
         sleep_enabled = state == ConnectionState.WIRELESS
         self._set_sleep_controls_enabled(sleep_enabled)
         self._sleep_hint.setText(
-            "Wireless dongle only — not available on wired connection."
+            "Available on 2.4G wireless. Wired sleep control is not yet supported."
             if state == ConnectionState.WIRED
-            else "Wireless dongle only."
+            else "2.4G wireless only. Set a timeout to auto-sleep the keyboard."
         )
 
         connected = state in (ConnectionState.WIRED, ConnectionState.WIRELESS)
@@ -601,9 +565,9 @@ class MainWindow(QMainWindow):
         if self._connection_state != ConnectionState.WIRELESS:
             QMessageBox.information(
                 self,
-                "Wireless only",
-                "Fixed color and brightness are not yet captured/implemented for the wired "
-                "connection. Use the 2.4G dongle for these controls.",
+                "2.4G wireless only",
+                "Fixed color is available on the 2.4G wireless connection. "
+                "Wired fixed-color control is not yet supported.",
             )
             return
         need_colorful_off = self._fixed_on_panel.is_colorful_on()
@@ -614,17 +578,6 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(
                 200, lambda: self._schedule_param(lambda: backend.set_colorful(False))
             )
-
-    def _on_fixed_on_brightness(self, level: int) -> None:
-        if self._connection_state != ConnectionState.WIRELESS:
-            QMessageBox.information(
-                self,
-                "Wireless only",
-                "Brightness control is not yet captured/implemented for the wired connection. "
-                "Use the 2.4G dongle for this control.",
-            )
-            return
-        self._schedule_param(lambda: backend.set_brightness(level))
 
     def _on_fixed_on_colorful(self, on: bool) -> None:
         self._schedule_param(lambda: backend.set_colorful(on))
