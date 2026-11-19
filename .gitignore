@@ -6,3 +6,14 @@ venv/
 
 # Raw USB captures are local ground truth, not source — regenerable from PLAN.md
 headset/captures/pcapng/*.pcapng
+
+# Local vendor installers and RE scratch artifacts (kept locally, not committed)
+*.exe
+*.msi
+*.zip
+*.7z
+*.tar.gz
+*.dmg
+*.pkg
+decode.py
+
