@@ -74,6 +74,20 @@ and Logitune HID++ wiki, not from running their code.
 
 Report rate `0x8061` still needs its wire format recovered.
 
+## DPI write round-trip (verified 2026-11-25)
+
+- `0x8100` fn2 mode reads `1` at rest. fn1 with value `2` switches to host
+  mode; fn1 with `0` or `1` leaves it at `1`. Restored to `1` after testing.
+- `0x2202` fn6 in onboard mode returns error report `11 01 ff 09 61 05`,
+  where `0x05` is Busy. In host mode the same write succeeds when sent as a
+  long report with `[sensor, dpi_x BE, dpi_y BE, lod]`, for example
+  `00 06 40 06 40 02` for 1600 DPI and LOD 2.
+- Read-back after the write showed X/Y 1600 while the stored defaults stayed
+  800. Restoring onboard mode reverted the live DPI to 800. Host-mode DPI is
+  therefore volatile; persistence needs the `0x8100` profile sector write.
+- `mouse/hidpp_dpi.py` wraps get/set, switches to host mode only when needed
+  and restores the original mode. Tested 800 → 1600 → 800 with read-back.
+
 ## Caution
 
 An exploratory sweep sent `0x8110` fn4 `SetButtonMap` with a zero payload and
