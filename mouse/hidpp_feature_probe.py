@@ -41,11 +41,17 @@ def drain(fd):
             return
 
 
-def request(fd, feature, function, params=(0, 0, 0), long_report=False):
-    """Send one HID++ short or long request and return the matching reply."""
+def request(fd, feature, function, params=(0, 0, 0), long_report=True):
+    """Send one HID++ request and return the matching reply.
+
+    This receiver answers long reports; short 0x10 requests were ignored.
+    """
     report = 0x11 if long_report else 0x10
+    length = 16 if long_report else 3
     header = bytes([report, DEVICE_INDEX, feature, (function << 4) | SW_ID])
-    packet = header + bytes(params) + bytes(16 - len(params))
+    # Replies always arrive as long 0x11 reports, even for short requests.
+    match_header = bytes([0x11, DEVICE_INDEX, feature, (function << 4) | SW_ID])
+    packet = header + bytes(params[:length]) + bytes(length - len(params[:length]))
     for _ in range(3):
         drain(fd)
         os.write(fd, packet)
@@ -58,7 +64,7 @@ def request(fd, feature, function, params=(0, 0, 0), long_report=False):
                 reply = os.read(fd, 64)
             except OSError:
                 continue
-            if reply[:4] == header:
+            if reply[:4] == match_header:
                 return reply
         time.sleep(0.05)
     return None
@@ -83,7 +89,7 @@ def main():
 
         print("\nSafe reads:")
         for label, feature, function, params, long_report in (
-            ("battery level", 6, 1, (0, 0, 0), False),
+            ("battery level", 6, 1, (0, 0, 0), False),  # short report only
             ("DPI X range", 9, 2, (0, 0, 0), True),
             ("DPI presets", 9, 3, (0, 0, 0), True),
             ("current DPI", 9, 5, (0, 0, 0), True),
